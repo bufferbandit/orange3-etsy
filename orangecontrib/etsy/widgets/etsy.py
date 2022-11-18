@@ -58,7 +58,6 @@ class OWCreateTable(TableHelpersBase, OWWidget):
     # as a context
     context_data = ContextSetting(copy.deepcopy(DEFAULT_DATA), schema_only=True)
     etsy_api_function_params = []
-    etsy_api_function_param_input_fields = []
 
     search_items = []
 
@@ -74,6 +73,8 @@ class OWCreateTable(TableHelpersBase, OWWidget):
 
     ETSY_API_CLIENT = None
 
+    ETSY_ROUTES = []
+
     def __init__(self):
         super().__init__()
         self.setup_ui()
@@ -86,8 +87,16 @@ class OWCreateTable(TableHelpersBase, OWWidget):
 
             def setup_control_box(self):
                 # Controls box
-                self.controls_box = gui.vBox(self.controlArea, "Control")
-                self.controls_box.setMinimumWidth(250)
+                self.controlBox = gui.vBox(self.controlArea, "Control")
+
+                # Set alignment top
+                self.controlBox.layout().setAlignment(Qt.AlignTop)
+                self.controlArea.layout().setAlignment(Qt.AlignTop)
+
+                self.controlBox.setMinimumWidth(250)
+
+
+
 
             def setup_info_box(self):
                 # Info box
@@ -106,53 +115,49 @@ class OWCreateTable(TableHelpersBase, OWWidget):
 
 
                 self.check_ETSY_AUTO_CLOSE_BROWSER = gui.checkBox(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         value="ETSY_AUTO_CLOSE_BROWSER",
                         label="(Etsy) Auto close browser")
 
                 self.check_ETSY_AUTO_REFRESH_TOKEN = gui.checkBox(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         value="ETSY_AUTO_REFRESH_TOKEN",
                         label="(Etsy) Auto refresh token")
 
                 self.check_ETSY_AUTO_START_AUTH = gui.checkBox(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         value="ETSY_AUTO_START_AUTH",
                         label="(Etsy) Auto start auth")
 
                 self.check_ETSY_VERBOSE = gui.checkBox(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         value="ETSY_VERBOSE",
                         label="(Etsy) Log to stdout")
 
                 self.check_ETSY_HOST = gui.lineEdit(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         value="ETSY_HOST",
                         label="(Etsy) Host")
+                # set max with of the input field to 100
+                # self.check_ETSY_HOST.setMaximumWidth(100)
 
                 self.check_ETSY_PORT = gui.spin(
-                        self.controls_box, self,
+                        self.controlBox, self,
                         minv=1, maxv=65535,
                         value="ETSY_PORT",
                         label="(Etsy) Port")
 
-                self.controls_box.resize(250, 250)
+                self.controlBox.resize(250, 250)
                 self.check_ETSY_HOST.setAlignment(Qt.AlignTop)
-
-                # self.check_ETSY_AUTO_CLOSE_BROWSER = QCheckBox('ETSY_AUTO_CLOSE_BROWSER', self.controls_box)
-                # self.check_ETSY_AUTO_CLOSE_BROWSER.move(20, 20)
-                # self.check_ETSY_AUTO_CLOSE_BROWSER.toggle()
-                # self.check_ETSY_AUTO_CLOSE_BROWSER.stateChanged.connect(self.changeTitle)
-
-                # self.check_ETSY_AUTO_REFRESH_TOKEN = QCheckBox
 
 
             def setup_settings_box(self):
                 # Settings box
                 self.dummy = None
-                settings_box = gui.widgetBox(self.controls_box, "Requests attributes")
-                for func in self.etsy_api_function_params:
-                    self.etsy_api_function_param_input_fields.append(gui.lineEdit(settings_box, self, value="dummy", label=func))
+                self.settings_box = gui.widgetBox(self.controlBox, "Requests attributes")
+                if not self.etsy_api_function_params:
+                    self.noInputLabel = gui.widgetLabel(self.settings_box, "No route selected. Please select a function.")
+
 
             def setup_buttons_area(self):
 
@@ -175,12 +180,11 @@ class OWCreateTable(TableHelpersBase, OWWidget):
                                 host=self.ETSY_HOST,
                                 port=self.ETSY_PORT
                             )
-
-
-                            # Populate the attribute fields
-                            routes = list(self.ETSY_API_CLIENT.get_api_routes())
-                            pprint.pprint(routes)
-
+                            self.ETSY_ROUTES = list(self.ETSY_API_CLIENT.get_api_routes())
+                            if self.ETSY_ROUTES:
+                                self.statusbarResLabel.setText("API routes successfully retrieved")
+                            self.searchBox.clear()
+                            self.searchBox.addItems([route[1] for route in self.ETSY_ROUTES])
                         else:
                             QtWidgets.QMessageBox.warning(self, "Error", "API token cannot be empty")
 
@@ -193,12 +197,36 @@ class OWCreateTable(TableHelpersBase, OWWidget):
             setup_settings_box(self)
             setup_buttons_area(self)
 
+
+
+
         def setup_content(self):
             self.mainAreaBox = gui.vBox(self.mainArea, True)
 
             def setup_search_box(self):
                 self.searchBox = SearchBarComboBox(self.mainArea)
-                self.searchBox.addItems(self.search_items)
+                def searchBoxCallback(index):
+                    nonlocal self
+                    self.dummy=None
+                    self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, \
+                        self.CURR_SELECTED_METHOD, self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB\
+                        = self.ETSY_ROUTES[index]
+
+                    print(self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL,
+                        self.CURR_SELECTED_METHOD, self.CURR_SELECTED_METHOD_ARGS)
+
+
+                    layout = self.settings_box.layout()
+                    for i in reversed(range(layout.count())):
+                        item = layout.itemAt(i)
+                        item.widget().close()
+
+                    for arg_name in self.CURR_SELECTED_METHOD_ARGS:
+                        if "{" + arg_name in self.CURR_SELECTED_URI_VAL + "}" \
+                                and self.CURR_SELECTED_VERB == "GET":
+                            gui.lineEdit(self.settings_box, self, value="dummy", label=arg_name)
+
+                self.searchBox.currentIndexChanged.connect(searchBoxCallback)
                 self.searchBox.show()
 
             def setup_table(self):
