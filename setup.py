@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 NAME = "Orange3-Etsy"
 
-VERSION = "9.83.97525"
+VERSION = "987.3215.6431"
 
 DESCRIPTION = "Orange widget for using the Etsy API and its data."
 
