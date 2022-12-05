@@ -1,55 +1,38 @@
 import copy
 import json
 import os
-import pprint
 import re
 import sys
 import traceback
 from functools import partial
-from typing import Optional
 
-import numpy as np
-import pandas
 import pandas as pd
-from AnyQt import QtCore, QtGui
-from AnyQt.QtCore import Qt, QAbstractTableModel, QModelIndex, QSize
-from AnyQt.QtWidgets import QTableView, QItemDelegate, QLineEdit, QCompleter, QWidget
+from AnyQt import QtGui
+from AnyQt.QtCore import Qt, QSize
+from AnyQt.QtWidgets import QTableView, QLineEdit
 
 from Orange.data import (
-    Table, Domain,
-    ContinuousVariable,
-    DiscreteVariable,
-    TimeVariable,
-    StringVariable,
-    Variable,
-    TimeVariable,
-    StringVariable,
-)
+    Table, )
 from Orange.widgets import gui
 from Orange.widgets.settings import (
-    Setting, ContextSetting,
-    PerfectDomainContextHandler, ContextHandler
+    Setting, ContextSetting
 )
-from Orange.widgets.utils import vartype
 from Orange.widgets.utils.widgetpreview import WidgetPreview
-from Orange.widgets.widget import OWWidget, Output, Input, Msg
-from PyQt5.QtCore import QByteArray
+from Orange.widgets.widget import OWWidget, Output, Msg
 
 from AnyQt import QtWidgets
-from PyQt5.QtWidgets import QTreeWidgetItem, QTreeView, QInputDialog, QCheckBox, QMessageBox
+from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox
 from etsyv3.etsy_api import BadRequest, Unauthorised, NotFound, InternalError, Forbidden, Conflict
 
 from orangecontrib.etsy.widgets.lib.etsy_api_client import EtsyOAuth2Client
 from orangecontrib.etsy.widgets.lib.qjsonmodel import QJsonModel
 from orangecontrib.etsy.widgets.lib.searchbar_helpers import SearchBarComboBox
 from orangecontrib.etsy.widgets.lib.table_helpers import (
-    TableHelpersBase, CreateTableContextHandler,
-    EditableTableItemDelegate, EditableTableModel, PandasModel, DataFrameModel, DataFrameWidget, ObjTable)
+    CreateTableContextHandler,
+    EditableTableItemDelegate, EditableTableModel, PandasModel)
 from orangecontrib.etsy.widgets.lib.tabletest import PandasModel
-from orangecontrib.etsy.widgets.lib.tree_helpers import DictTreeModel
-from orangecontrib.etsy.widgets.utils.base_helper import BaseHelper
-from sklearn.preprocessing import MultiLabelBinarizer
-from pprint import pprint
+from orangecontrib.etsy.widgets.lib.base_helper import BaseHelper
+
 
 class OrangeEtsyApiInterface(OWWidget, BaseHelper):
     name = "Etsy API"
@@ -164,33 +147,47 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
             def setup_info_box():
                 nonlocal self
+
+                self.etsyOptionsControlBox = gui.vBox(self.controlBox, "Etsy")
+
                 self.check_ETSY_AUTO_CLOSE_BROWSER = gui.checkBox(
-                        self.controlBox, self,
+                        self.etsyOptionsControlBox, self,
                         value="ETSY_AUTO_CLOSE_BROWSER",
                         label="(Etsy) Auto close browser")
 
                 self.check_ETSY_AUTO_REFRESH_TOKEN = gui.checkBox(
-                        self.controlBox, self,
+                        self.etsyOptionsControlBox, self,
                         value="ETSY_AUTO_REFRESH_TOKEN",
                         label="(Etsy) Auto refresh token")
 
                 self.check_ETSY_AUTO_START_AUTH = gui.checkBox(
-                        self.controlBox, self,
+                        self.etsyOptionsControlBox, self,
                         value="ETSY_AUTO_START_AUTH",
                         label="(Etsy) Auto start auth")
 
                 self.check_ETSY_VERBOSE = gui.checkBox(
-                        self.controlBox, self,
+                        self.etsyOptionsControlBox, self,
                         value="ETSY_VERBOSE",
                         label="(Etsy) Log to stdout")
 
+                self.check_ETSY_HOST = gui.lineEdit(
+                    self.etsyOptionsControlBox, self,
+                    value="ETSY_HOST",
+                    label="(Etsy) Host")
 
-                self.check_SELECT_RESULTS_ONLY_TABLE_VIEW = gui.checkBox(
-                        self.controlBox, self, callback=self.populateData,
-                        value="SELECT_RESULTS_ONLY_TABLE_VIEW",
-                        label="Select results only")
+                # self.check_ETSY_HOST.setMaximumWidth(100)
+
+                self.check_ETSY_PORT = gui.spin(
+                    self.etsyOptionsControlBox, self,
+                    minv=1, maxv=65535,
+                    value="ETSY_PORT",
+                    label="(Etsy) Port")
+
+                # self.etsyOptionsControlBox.setFlat(False)
 
 
+
+                self.check_ETSY_HOST.setAlignment(Qt.AlignTop)
 
                 def flatten_table_callback():
                     if self.check_FLATTEN_TABLE.isChecked():
@@ -202,22 +199,28 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                     self.populateData()
                 self.flatten_table_callback = flatten_table_callback
 
+
+
+
+                self.flattenOptionsControlBox = gui.vBox(self.controlBox, "Flatten")
+
                 # Flatten table checkbox
                 self.check_FLATTEN_TABLE = gui.checkBox(
-                        self.controlBox, self, callback=self.flatten_table_callback,
+                        self.flattenOptionsControlBox, self, callback=self.flatten_table_callback,
                         value="FLATTEN_TABLE",
                         label="Flatten table")
 
                 # Display flattened table checkbox
                 self.check_DISPLAY_FLATTENED_TABLE = gui.checkBox(
-                    self.controlBox, self, callback=self.populateData,
+                    self.flattenOptionsControlBox, self, callback=self.populateData,
                     value="DISPLAY_FLATTENED_TABLE",
                     label="(FLATTEN) Display flattened table")
 
                 # REMOVE_ORIGINAL_COLUMN
                 self.check_REMOVE_ORIGINAL_COLUMN = gui.checkBox(
-                    self.controlBox, self, callback=self.populateData,
-                    value="REMOVE_ORIGINAL_COLUMN", label="(FLATTEN) Remove original columns")
+                    self.flattenOptionsControlBox, self, callback=self.populateData,
+                    value="REMOVE_ORIGINAL_COLUMN",
+                    label="(FLATTEN) Remove original columns")
 
                 # If flatten table is checked
                 if not self.check_FLATTEN_TABLE.isChecked():
@@ -226,28 +229,20 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                     self.check_REMOVE_ORIGINAL_COLUMN.hide()
 
 
-                self.check_ETSY_HOST = gui.lineEdit(
-                        self.controlBox, self,
-                        value="ETSY_HOST",
-                        label="(Etsy) Host")
-
-                # self.check_ETSY_HOST.setMaximumWidth(100)
 
 
-                self.check_ETSY_PORT = gui.spin(
-                        self.controlBox, self,
-                        minv=1, maxv=65535,
-                        value="ETSY_PORT",
-                        label="(Etsy) Port")
+                self.check_SELECT_RESULTS_ONLY_TABLE_VIEW = gui.checkBox(
+                    self.controlBox, self, callback=self.populateData,
+                    value="SELECT_RESULTS_ONLY_TABLE_VIEW",
+                    label="Select results only")
 
                 self.refresh_data_button = gui.button(
                     self.controlBox, self, "Reload existing data",
                     callback=self.populateData)
-                # hide button
                 self.refresh_data_button.hide()
 
                 self.controlBox.resize(250, 250)
-                self.check_ETSY_HOST.setAlignment(Qt.AlignTop)
+
 
             def setup_settings_box():
                 nonlocal self
