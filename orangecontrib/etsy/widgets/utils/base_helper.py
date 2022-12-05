@@ -3,8 +3,10 @@ from collections import OrderedDict
 import Orange
 import numpy as np
 import pandas
+import pandas as pd
 from Orange.data import DiscreteVariable, TimeVariable
 from Orange.data import Domain, ContinuousVariable, DiscreteVariable
+from sklearn.preprocessing import MultiLabelBinarizer
 
 
 class BaseHelper:
@@ -61,3 +63,18 @@ class BaseHelper:
 		domain = Orange.data.Domain(attributes=attributes.values(), metas=metas.values())
 
 		return domain, list(attributes.keys()), list(metas.keys())
+
+	def binarize_columns(self, df, remove_original_columns=False):
+		mlb = MultiLabelBinarizer()
+		all_lists = lambda column: (column.sample(100).apply(type).astype(str) == "<class 'list'>").all(0)
+		any_lists = lambda column: (column.sample(100).apply(type).astype(str) == "<class 'list'>").any(0)
+
+		for column in df.columns:
+			if any_lists(df[column]):
+				transformed_column = mlb.fit_transform(df[column])
+				transformed_column = pd.DataFrame(transformed_column,
+				                                  columns=[column + "_" + str(x) for x in mlb.classes_])
+				df = pd.concat([df, transformed_column], axis=1)
+				if remove_original_columns:
+					df = df.drop(column, axis=1)
+		return df

@@ -36,7 +36,7 @@ from Orange.widgets.widget import OWWidget, Output, Input, Msg
 from PyQt5.QtCore import QByteArray
 
 from AnyQt import QtWidgets
-from PyQt5.QtWidgets import QTreeWidgetItem, QTreeView, QInputDialog, QCheckBox
+from PyQt5.QtWidgets import QTreeWidgetItem, QTreeView, QInputDialog, QCheckBox, QMessageBox
 from etsyv3.etsy_api import BadRequest, Unauthorised, NotFound, InternalError, Forbidden, Conflict
 
 from orangecontrib.etsy.widgets.lib.etsy_api_client import EtsyOAuth2Client
@@ -48,11 +48,8 @@ from orangecontrib.etsy.widgets.lib.table_helpers import (
 from orangecontrib.etsy.widgets.lib.tabletest import PandasModel
 from orangecontrib.etsy.widgets.lib.tree_helpers import DictTreeModel
 from orangecontrib.etsy.widgets.utils.base_helper import BaseHelper
-
-
-
-
-
+from sklearn.preprocessing import MultiLabelBinarizer
+from pprint import pprint
 
 class OrangeEtsyApiInterface(OWWidget, BaseHelper):
     name = "Etsy API"
@@ -61,7 +58,7 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
     priority = 100
     keywords = ["Etsy", "API", "data", "web", "table"]
 
-    DEBUG = False
+    DEBUG = 1
 
     class Outputs:
         data = Output("Etsy API data", Table)
@@ -108,7 +105,12 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
     ETSY_API_RESPONSE_DF = None
     ETSY_API_RESPONSE_DF_MODEL = None
 
+    DISPLAY_FLATTENED_TABLE = Setting(True)
+    REMOVE_ORIGINAL_COLUMN = Setting(False)
+
     df = None
+    df_flattened = None
+    df_json = None
 
     def __init__(self):
         super().__init__()
@@ -116,7 +118,7 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
 
     def populateData(self):
-        if True: #self.df is not None:
+        if True: # self.df is not None:
             # show the button again
             self.refresh_data_button.show()
 
@@ -126,37 +128,22 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
             self.tree_model.load(self.ETSY_API_RESPONSE)
 
             # Populate table view
-
-            # if self.FLATTEN_TABLE:
-            #     # self.df = pd.json_normalize(self.flatten_json(self.ETSY_API_RESPONSE))
-            #     for key,value in self.ETSY_API_RESPONSE:
-            #         print(key,value)
-
-            import pandas as pd
-
-            self.df = pd.json_normalize(self.ETSY_API_RESPONSE)
+            self.df_json = pd.json_normalize(self.ETSY_API_RESPONSE)
             if self.SELECT_RESULTS_ONLY_TABLE_VIEW:
-                self.df = pd.DataFrame(self.ETSY_API_RESPONSE["results"])
+                self.df_json = pd.DataFrame(self.ETSY_API_RESPONSE["results"])
+            self.df = self.df_json
 
+            if self.FLATTEN_TABLE:
+                self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
+                self.df = self.df_flattened
 
-
-
-            model = PandasModel(self.df)
+            # Set table data
+            model = PandasModel(self.df if self.DISPLAY_FLATTENED_TABLE
+                                else self.df_flattened)
             self.tableWidget.setModel(model)
 
-
-
-            ####\\\\\\\\\\\\\
-
-
-
-
-            ####//////////////
-
-
+            # Set output data
             table = self.pandas_to_orange(self.df)
-
-
             self.Outputs.data.send(table)
 
 
@@ -203,10 +190,40 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                         value="SELECT_RESULTS_ONLY_TABLE_VIEW",
                         label="Select results only")
 
-                # self.check_FLATTEN_TABLE = gui.checkBox(
-                #         self.controlBox, self, callback=self.populateData,
-                #         value="FLATTEN_TABLE",
-                #         label="Flatten table")
+
+
+                def flatten_table_callback():
+                    if self.check_FLATTEN_TABLE.isChecked():
+                        self.check_DISPLAY_FLATTENED_TABLE.show()
+                        self.check_REMOVE_ORIGINAL_COLUMN.show()
+                    else:
+                        self.check_DISPLAY_FLATTENED_TABLE.hide()
+                        self.check_REMOVE_ORIGINAL_COLUMN.hide()
+                    self.populateData()
+                self.flatten_table_callback = flatten_table_callback
+
+                # Flatten table checkbox
+                self.check_FLATTEN_TABLE = gui.checkBox(
+                        self.controlBox, self, callback=self.flatten_table_callback,
+                        value="FLATTEN_TABLE",
+                        label="Flatten table")
+
+                # Display flattened table checkbox
+                self.check_DISPLAY_FLATTENED_TABLE = gui.checkBox(
+                    self.controlBox, self, callback=self.populateData,
+                    value="DISPLAY_FLATTENED_TABLE",
+                    label="(FLATTEN) Display flattened table")
+
+                # REMOVE_ORIGINAL_COLUMN
+                self.check_REMOVE_ORIGINAL_COLUMN = gui.checkBox(
+                    self.controlBox, self, callback=self.populateData,
+                    value="REMOVE_ORIGINAL_COLUMN", label="(FLATTEN) Remove original columns")
+
+                # If flatten table is checked
+                if not self.check_FLATTEN_TABLE.isChecked():
+                    # Show the display flattened table checkbox
+                    self.check_DISPLAY_FLATTENED_TABLE.hide()
+                    self.check_REMOVE_ORIGINAL_COLUMN.hide()
 
 
                 self.check_ETSY_HOST = gui.lineEdit(
@@ -332,7 +349,6 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                 nonlocal self
                 self.searchBox = SearchBarComboBox(self.mainArea)
 
-
                 def searchBoxCallback(index):
                     nonlocal self
                     bar_text = self.searchBox.currentText()#.split("->")[0].strip()
@@ -439,23 +455,23 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
             def setup_res_size_label(size, color="black"):
                 nonlocal self
                 self.statusbarResLabel = gui.widgetLabel(self.statusBar(), label="Response size: " + size)
-                if color: self.statusbarResLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
+                self.statusbarResLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
             def setup_app_status_label(status, color="black"):
                 nonlocal self
                 self.statusbarStatusLabel = gui.widgetLabel(self.statusBar(), label="Application Status: " + status)
-                if color: self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
+                self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
             def change_res_size_label(text, color="black"):
                 nonlocal self
                 self.statusbarResLabel.setText("Application Status: " + text)
-                if color: self.statusbarResLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
+                self.statusbarResLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
             def change_app_status_label(text, color="black"):
                 nonlocal self
                 self.statusbarStatusLabel.setText("Application Status: " + text)
-                if color: self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
+                self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
             def change_http_status_label(text, color="black"):
                 nonlocal self
                 self.statusbarStatusLabel.setText("Application Status: " + text)
-                if color: self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
+                self.statusbarStatusLabel.setStyleSheet(f"QLabel {{ color : {color} }}")
 
             self.change_res_size_label = change_res_size_label
             self.change_app_status_label = change_app_status_label
@@ -472,6 +488,7 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
             nonlocal self
             self.change_app_status_label("Error: " + str(value), "red")
             self.transform_err = Msg("Data does not fit to domain")
+            QMessageBox.critical(self, "Error", str(value), QMessageBox.Ok)
             sys.__excepthook__(exctype, value, traceback)
         sys.excepthook = exception_hook
     def resizeEvent(self, event):
