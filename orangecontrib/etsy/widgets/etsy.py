@@ -247,10 +247,13 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
             def setup_settings_box():
                 nonlocal self
                 # Settings box
-                self.settings_box = gui.widgetBox(self.controlBox, "Request attributes")
+                self.settings_box1 = gui.widgetBox(self.controlBox, "In url attributes (required)")
+                self.settings_box2 = gui.widgetBox(self.controlBox, "Misc request attributes (non required)")
                 if not self.etsy_api_function_params:
-                    self.noInputLabel = gui.widgetLabel(self.settings_box, "No route selected. Please select a function.")
-
+                    gui.widgetLabel(self.settings_box1, "No route selected. Please select a function.")
+                    gui.widgetLabel(self.settings_box2, "No route selected. Please select a function.")
+                    # self.settings_box1.hide()
+                    # self.settings_box2.hide()
 
             def setup_buttons_area():
                 nonlocal self
@@ -356,19 +359,22 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
                     self.etsy_client_send_request = self.CURR_SELECTED_METHOD
 
-                    # clear layout
-                    layout = self.settings_box.layout()
-                    for i in reversed(range(layout.count())):
-                        item = layout.itemAt(i)
-                        item.widget().close()
+                    # clear layouts
+                    self.clear_element(self.settings_box1)
+                    self.clear_element(self.settings_box2)
 
                     for arg_name in self.CURR_SELECTED_METHOD_ARGS:
-                        if self.CURR_SELECTED_VERB == "GET" and ("{" + arg_name in self.CURR_SELECTED_URI_VAL + "}"):
-                            self.settings_box.setTitle(" Request attributes for: " + self.CURR_SELECTED_METHOD_NAME)
-                            line_edit = QLineEdit(self.settings_box)
+                        if self.CURR_SELECTED_VERB == "GET":
+                            if ("{" + arg_name in self.CURR_SELECTED_URI_VAL + "}"):
+                                box = self.settings_box1
+                            else:
+                                box = self.settings_box2
+
+
+                            line_edit = QLineEdit(box)
                             line_edit.setPlaceholderText(arg_name)
                             line_edit.setObjectName(arg_name)
-                            self.settings_box.layout().addWidget(line_edit)
+                            box.layout().addWidget(line_edit)
 
                             # Callback to handle input and setting it in kwargs
                             def lineEditCallback(data, widget=None):
