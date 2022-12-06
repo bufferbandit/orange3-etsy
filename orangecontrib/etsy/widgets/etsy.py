@@ -41,7 +41,7 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
     priority = 100
     keywords = ["Etsy", "API", "data", "web", "table"]
 
-    DEBUG = 1
+    DEBUG = 0
 
     class Outputs:
         data = Output("Etsy API data", Table)
