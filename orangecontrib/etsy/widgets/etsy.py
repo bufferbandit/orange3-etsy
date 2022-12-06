@@ -21,8 +21,7 @@ from Orange.widgets.utils.widgetpreview import WidgetPreview
 from Orange.widgets.widget import OWWidget, Output, Msg
 
 from AnyQt import QtWidgets
-from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox
-from etsyv3.etsy_api import BadRequest, Unauthorised, NotFound, InternalError, Forbidden, Conflict
+from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox, QSlider, QDoubleSpinBox, QComboBox
 
 from orangecontrib.etsy.widgets.lib.etsy_api_client import EtsyOAuth2Client
 from orangecontrib.etsy.widgets.lib.qjsonmodel import QJsonModel
@@ -31,10 +30,11 @@ from orangecontrib.etsy.widgets.lib.table_helpers import (
     CreateTableContextHandler,
     EditableTableItemDelegate, EditableTableModel, PandasModel)
 from orangecontrib.etsy.widgets.lib.tabletest import PandasModel
-from orangecontrib.etsy.widgets.lib.base_helper import BaseHelper
+from orangecontrib.etsy.widgets.lib.widgets_helper import WidgetsHelper
+from orangecontrib.etsy.widgets.lib.request_helper import RequestHelper
 
 
-class OrangeEtsyApiInterface(OWWidget, BaseHelper):
+class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
     name = "Etsy API"
     description = "Orange widget for using the Etsy API and its data."
     icon = "icons/etsy_icon_round.svg"
@@ -81,7 +81,6 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
     ETSY_ROUTES = []
 
-    SELECT_RESULTS_ONLY_TABLE_VIEW = Setting(True)
     SELECT_RESULTS_ONLY_OUTPUT = Setting(True)
     FLATTEN_TABLE = Setting(False)
 
@@ -97,6 +96,8 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
     def __init__(self):
         super().__init__()
+        WidgetsHelper.__init__(self)
+        RequestHelper.__init__(self)
         self.setup_ui()
 
 
@@ -111,9 +112,8 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
             self.tree_model.load(self.ETSY_API_RESPONSE)
 
             # Populate table view
-            self.df_json = pd.json_normalize(self.ETSY_API_RESPONSE)
-            if self.SELECT_RESULTS_ONLY_TABLE_VIEW:
-                self.df_json = pd.DataFrame(self.ETSY_API_RESPONSE["results"])
+            # self.df_json = pd.json_normalize(self.ETSY_API_RESPONSE)
+            self.df_json = pd.DataFrame(self.ETSY_API_RESPONSE["results"])
             self.df = self.df_json
 
             if self.FLATTEN_TABLE:
@@ -228,14 +228,6 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                     self.check_DISPLAY_FLATTENED_TABLE.hide()
                     self.check_REMOVE_ORIGINAL_COLUMN.hide()
 
-
-
-
-                self.check_SELECT_RESULTS_ONLY_TABLE_VIEW = gui.checkBox(
-                    self.controlBox, self, callback=self.populateData,
-                    value="SELECT_RESULTS_ONLY_TABLE_VIEW",
-                    label="Select results only")
-
                 self.refresh_data_button = gui.button(
                     self.controlBox, self, "Reload existing data",
                     callback=self.populateData)
@@ -246,12 +238,17 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
             def setup_settings_box():
                 nonlocal self
+                self.controlBox.layout().addSpacing(40)
                 # Settings box
-                self.settings_box1 = gui.widgetBox(self.controlBox, "In url attributes (required)")
-                self.settings_box2 = gui.widgetBox(self.controlBox, "Misc request attributes (non required)")
+                self.settings_box1 = gui.widgetBox(self.controlBox, "Required parameters)")
+                self.settings_box2 = gui.widgetBox(self.controlBox, "Optional parameters")
                 if not self.etsy_api_function_params:
                     gui.widgetLabel(self.settings_box1, "No route selected. Please select a function.")
+                    self.settings_box1.layout().addSpacing(40)
+
                     gui.widgetLabel(self.settings_box2, "No route selected. Please select a function.")
+                    self.settings_box2.layout().addSpacing(40)
+
                     # self.settings_box1.hide()
                     # self.settings_box2.hide()
 
@@ -268,35 +265,7 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                             self.sendRequestButton.setEnabled(True)
                             self.sendRequestButton.setText("Send request")
 
-                            def sendRequest():
-                                nonlocal self
-                                self.change_app_status_label("Sending request")
-                                try:
-                                    res = self.etsy_client_send_request(*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
-                                                                  **self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
-                                    self.ETSY_API_RESPONSE = res
-                                    self.change_http_status_label("200 OK", color="green")
-                                    self.populateData()
-
-
-                                except BadRequest as e:
-                                    self.change_http_status_label("400 Bad request", color="red")
-                                except Unauthorised as e:
-                                    self.change_http_status_label("401 Unauthorised", color="red")
-                                except Forbidden as e:
-                                    self.change_http_status_label("403 Forbidden", color="red")
-                                except Conflict as e:
-                                    self.change_http_status_label("409 Conflict", color="red")
-                                except NotFound as e:
-                                    self.change_http_status_label("404 Not found", color="red")
-                                except InternalError as e:
-                                    self.change_http_status_label("500 Internal server error", color="red")
-                                except Exception as e:
-                                    self.change_http_status_label("Unknown error while sending request", color="red")
-                                    print(e)
-                                    print(traceback.format_exc())
-
-                            self.sendRequestButton.clicked.connect(sendRequest)
+                            self.sendRequestButton.clicked.connect(self.dispatch_request)
 
                             self.ETSY_API_CLIENT = EtsyOAuth2Client(
                                 api_token=self.ETSY_API_TOKEN,
@@ -349,7 +318,7 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
 
                 def searchBoxCallback(index):
                     nonlocal self
-                    bar_text = self.searchBox.currentText()#.split("->")[0].strip()
+                    bar_text = self.searchBox.currentText()
                     method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
                     method_name_match = method_name_regex.match(bar_text)
                     method_name = method_name_match.group(2)
@@ -362,26 +331,31 @@ class OrangeEtsyApiInterface(OWWidget, BaseHelper):
                     # clear layouts
                     self.clear_element(self.settings_box1)
                     self.clear_element(self.settings_box2)
+                    
+                    
+                    def setup_arg_elements():
+                        nonlocal self
+                        for arg_name in self.CURR_SELECTED_METHOD_ARGS:
 
-                    for arg_name in self.CURR_SELECTED_METHOD_ARGS:
-                        if self.CURR_SELECTED_VERB == "GET":
-                            if ("{" + arg_name in self.CURR_SELECTED_URI_VAL + "}"):
-                                box = self.settings_box1
-                            else:
-                                box = self.settings_box2
+                            parameter = self.parameters[arg_name]
+
+                            parent = self.settings_box1 if parameter["required"] \
+                                    else self.settings_box2
 
 
-                            line_edit = QLineEdit(box)
-                            line_edit.setPlaceholderText(arg_name)
-                            line_edit.setObjectName(arg_name)
-                            box.layout().addWidget(line_edit)
 
-                            # Callback to handle input and setting it in kwargs
-                            def lineEditCallback(data, widget=None):
+                            def elementCallback(data, widget=None):
                                 nonlocal self
                                 widget_name = widget.objectName()
                                 self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
-                            line_edit.textChanged.connect(partial(lineEditCallback, widget=line_edit))
+
+                            element, label = self.build_pyqt_element_from_parameter(arg_name, elementCallback)
+                            parent.layout().addWidget(label)
+                            parent.layout().addWidget(element)
+                    
+
+                    setup_arg_elements()
+
 
                 self.searchBox.currentIndexChanged.connect(searchBoxCallback)
                 self.searchBox.show()
