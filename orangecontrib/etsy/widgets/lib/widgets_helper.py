@@ -36,7 +36,8 @@ class WidgetsHelper:
             elif _type in [np.datetime64]:
                 attr_val = TimeVariable(col)
             elif _type in [object]:
-                print("Skipping obj column: ", col)
+                # print("Skipping obj column: ", col)
+                pass
             # from Orange.data import Variable
             # attr_val = Variable(col)
             # attr_val = DiscreteVariable(np.array(col))
@@ -115,7 +116,10 @@ class WidgetsHelper:
         return parameters
 
     def build_pyqt_element_from_parameter(self, parameter_name, callback):
-        parameter = self.parameters[parameter_name]
+        parameter = self.parameters.get(parameter_name)
+        if not parameter:
+            # print("Parameter not found in arguments documentation: ", parameter_name)
+            return None, None
         schema = parameter["schema"]
         element = None
         if "enum" in schema:
@@ -184,6 +188,33 @@ class WidgetsHelper:
         el = QWidget()
         el.setLayout(self.build_element_with_label_layout(label_text, element))
         return el
+
+
+class SetupHelper:
+    def setup_arg_elements(self):
+        for arg_name in self.CURR_SELECTED_METHOD_ARGS:
+            parameter = self.parameters.get(arg_name)
+
+            parent = self.settings_box1 \
+                        if (parameter["required"] if parameter else False) \
+                            else self.settings_box2
+
+            def elementCallback(data, widget=None):
+                nonlocal self
+                widget_name = widget.objectName()
+                self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
+
+            element, label = self.build_pyqt_element_from_parameter(arg_name, elementCallback)
+            if element is not None and label is not None:
+                parent.layout().addWidget(label)
+                parent.layout().addWidget(element)
+    def populate_search_box(self):
+        # self.searchBox.clear()
+        for route in self.ETSY_ROUTES:
+            method_name, url, verb = route[0], route[1], route[4]
+            if verb in [k for k, v in self.selected_methods.items() if v]:
+                self.searchBox.addItem(f"[{verb}] {method_name} -> {url}")
+
 
 class ElementTreeWidget(QTreeWidget):
     def __init__(self, top_level_element=None, elements=None):

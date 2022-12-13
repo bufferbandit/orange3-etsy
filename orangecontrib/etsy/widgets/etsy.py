@@ -31,11 +31,11 @@ from orangecontrib.etsy.widgets.lib.table_helpers import (
 	CreateTableContextHandler,
 	EditableTableItemDelegate, EditableTableModel, PandasModel)
 from orangecontrib.etsy.widgets.lib.tabletest import PandasModel
-from orangecontrib.etsy.widgets.lib.widgets_helper import WidgetsHelper, ElementTreeWidget
+from orangecontrib.etsy.widgets.lib.widgets_helper import WidgetsHelper, ElementTreeWidget, SetupHelper
 from orangecontrib.etsy.widgets.lib.request_helper import RequestHelper
 
 
-class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
+class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper):
 	name = "Etsy API"
 	description = "Orange widget for using the Etsy API and its data."
 	icon = "icons/etsy_icon_round.svg"
@@ -86,6 +86,8 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
 	SELECT_RESULTS_ONLY_OUTPUT = Setting(True)
 	FLATTEN_TABLE = Setting(False)
 
+	ETSY_API_RESPONSE = {}
+
 	ETSY_API_RESPONSE_DF = None
 	ETSY_API_RESPONSE_DF_MODEL = None
 
@@ -112,16 +114,20 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
 
 	def setup_custom_exception_hook(self):
 		def exception_hook(exctype, value, traceback):
-			error_msg = "Error: " + str(value)
+			error_msg = f"Error: {exctype}: {value}"
 			self.change_app_status_label(error_msg, "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
-			QMessageBox.critical(self, "Error", str(value), QMessageBox.Ok)
+			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
 			sys.__excepthook__(exctype, value, traceback)
 
 		sys.excepthook = exception_hook
 
 	def populateData(self):
+		if not self.ETSY_API_RESPONSE:
+			# Show warning message box if no data is available
+			QMessageBox.warning(self, "Warning", "No data available. Please send a request first.")
+			return
 		# if True: # self.df is not None:
 		# show the button again
 		self.refresh_data_button.show()
@@ -173,7 +179,11 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
 				def build_method_button(method):
 					cb = QCheckBox(method)
 					cb.setChecked(self.selected_methods[method])
-					cb.stateChanged.connect(lambda state: self.selected_methods.update({method: state == Qt.Checked}))
+					def on_cb_state_changed(state):
+						self.selected_methods.update({method: state == Qt.Checked})
+						self.searchBox.clear()
+						self.populate_search_box()
+					cb.stateChanged.connect(on_cb_state_changed)
 					return cb
 
 				# loop through the methods and add them to the tree
@@ -397,11 +407,7 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
 							if self.ETSY_ROUTES:
 								self.change_app_status_label("API routes successfully retrieved")
 							self.searchBox.clear()
-							for route in self.ETSY_ROUTES:
-								method_name, url, verb = route[0], route[1], route[4]
-								# Only using GET routes for now
-								if 1:  # verb == "GET":
-									self.searchBox.addItem(f"[{verb}] {method_name} -> {url}")
+							self.populate_search_box()
 						else:
 							QtWidgets.QMessageBox.warning(self, "Error", "API token cannot be empty")
 
@@ -434,43 +440,26 @@ class OrangeEtsyApiInterface(OWWidget, WidgetsHelper, RequestHelper):
 				nonlocal self
 				self.searchBox = SearchBarComboBox(self.mainArea)
 
-				def searchBoxCallback(index):
+				def searchBoxCallback(bar_text):
 					nonlocal self
-					bar_text = self.searchBox.currentText()
+					# bar_text = self.searchBox.currentText()
 					method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
 					method_name_match = method_name_regex.match(bar_text)
-					method_name = method_name_match.group(2)
 
-					self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
-					self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[
-						method_name]
+					if method_name_match:
+						method_name = method_name_match.group(2)
+						self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
+						self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[
+							method_name]
 
-					self.etsy_client_send_request = self.CURR_SELECTED_METHOD
+						self.etsy_client_send_request = self.CURR_SELECTED_METHOD
 
-					# clear layouts
-					self.clear_element(self.settings_box1)
-					self.clear_element(self.settings_box2)
+						# clear layouts
+						self.clear_element(self.settings_box1)
+						self.clear_element(self.settings_box2)
+						self.setup_arg_elements()
 
-					def setup_arg_elements():
-						nonlocal self
-						for arg_name in self.CURR_SELECTED_METHOD_ARGS:
-							parameter = self.parameters[arg_name]
-
-							parent = self.settings_box1 if parameter["required"] \
-								else self.settings_box2
-
-							def elementCallback(data, widget=None):
-								nonlocal self
-								widget_name = widget.objectName()
-								self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
-
-							element, label = self.build_pyqt_element_from_parameter(arg_name, elementCallback)
-							parent.layout().addWidget(label)
-							parent.layout().addWidget(element)
-
-					setup_arg_elements()
-
-				self.searchBox.currentIndexChanged.connect(searchBoxCallback)
+				self.searchBox.currentTextChanged.connect(searchBoxCallback)
 				self.searchBox.show()
 
 			def setup_table():
