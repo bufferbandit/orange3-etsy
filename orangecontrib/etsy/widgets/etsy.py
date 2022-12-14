@@ -355,7 +355,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
 				self.paginateSlider.setRange(1, 1000)
-				self.paginateSlider.setSliderPosition([1,self.paginateLimitValue])
+				self.paginateSlider.setSliderPosition([1, self.paginateLimitValue])
 				self.paginateSlider.setTickInterval(100)
 				self.paginateSlider.setEnabled(False)
 
@@ -391,7 +391,6 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					self.etsy_request_offsets_and_limits = test_pagination(_range=value,
 					                request_function=dummy_request_function,
 					                limit=self.paginateLimitValue)
-					print(self.etsy_request_offsets_and_limits)
 
 				self.paginateSlider.valueChanged.connect(on_slider_valueChanged)
 
@@ -409,7 +408,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				def paginateLimitSpinnerCallback(value):
 					if self.sliderPosition:
 						_min = self.sliderPosition.sliderPosition()[0]
-						_max = (self.sliderPosition.sliderPosition()[0] + self.paginateLimitValue) - 1
+						_max = (self.sliderPosition.sliderPosition()[0]) - 1 # + self.paginateLimitValue) - 1
 					else:
 						_min = 1
 						_max = self.paginateLimitValue
