@@ -178,16 +178,30 @@ class WidgetsHelper:
         element.setObjectName(parameter["name"])
         return element, QLabel(parameter["name"])
 
-    def build_element_with_label_layout(self, label_text, element):
+    def build_element_with_label_layout(self, label_text, element, ret_all_elements=False):
         hbox = QHBoxLayout()
-        hbox.addWidget(QLabel(label_text))
+        label = QLabel(label_text)
+        hbox.addWidget(label)
         hbox.addWidget(element)
-        return hbox
+        return hbox if not ret_all_elements else (hbox, label, element)
 
     def build_element_with_label(self, label_text, element):
-        el = QWidget()
-        el.setLayout(self.build_element_with_label_layout(label_text, element))
-        return el
+        # el = QWidget()
+        # el.setLayout(self.build_element_with_label_layout(label_text, element))
+        # return el
+        return self.layout_to_element(self.build_element_with_label_layout(label_text, element))
+
+
+    def layout_to_element(self, layout):
+        element = QWidget()
+        element.setLayout(layout)
+        return element
+
+    def toggle_element_enabled(self, element):
+        element.setEnabled(not element.isEnabled())
+    def toggle_elements_enabled(self, elements):
+        for element in elements:
+            self.toggle_element_enabled(element)
 
 
 class SetupHelper:

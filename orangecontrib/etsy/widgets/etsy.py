@@ -3,7 +3,9 @@ import json
 import os
 import re
 import sys
+import textwrap
 import traceback
+from collections import ChainMap
 from functools import partial
 
 import pandas as pd
@@ -22,7 +24,8 @@ from Orange.widgets.widget import OWWidget, Output, Msg
 
 from AnyQt import QtWidgets
 from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox, QSlider, QDoubleSpinBox, QComboBox, QAbstractItemView, \
-	QCheckBox, QSpinBox, QLabel
+	QCheckBox, QSpinBox, QLabel, QSpacerItem
+from qtrangeslider import QLabeledRangeSlider
 
 from orangecontrib.etsy.widgets.lib.etsy_api_client import EtsyOAuth2Client
 from orangecontrib.etsy.widgets.lib.qjsonmodel import QJsonModel
@@ -51,7 +54,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		transform_err = Msg("Data does not fit to domain")
 
 	settingsHandler = CreateTableContextHandler()
-	DEFAULT_DATA = [[None] * 6 for y in range(20)]
+	DEFAULT_DATA = [[None] * 8 for y in range(20)]
 
 	# since data is a small (at most 20x20) table we can afford to store it
 	# as a context
@@ -85,6 +88,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 	SELECT_RESULTS_ONLY_OUTPUT = Setting(True)
 	FLATTEN_TABLE = Setting(False)
+	SEQUENCE_REQUESTS = Setting(False)
+
 
 	ETSY_API_RESPONSE = {}
 
@@ -104,6 +109,14 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 	df = None
 	df_flattened = None
 	df_json = None
+
+	paginateLimitValue = Setting(100)
+
+	etsy_request_offsets_and_limits = []
+
+	request_lock = None
+
+
 
 	def __init__(self):
 		super().__init__()
@@ -196,38 +209,6 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.etsyOptionsControlBox = gui.vBox(self.controlBox, "Etsy")
 
-				# self.check_ETSY_AUTO_CLOSE_BROWSER = gui.checkBox(
-				#         self.etsyOptionsControlBox, self,
-				#         value="ETSY_AUTO_CLOSE_BROWSER",
-				#         label="(Etsy) Auto close browser")
-				#
-				# self.check_ETSY_AUTO_REFRESH_TOKEN = gui.checkBox(
-				#         self.etsyOptionsControlBox, self,
-				#         value="ETSY_AUTO_REFRESH_TOKEN",
-				#         label="(Etsy) Auto refresh token")
-				#
-				# self.check_ETSY_AUTO_START_AUTH = gui.checkBox(
-				#         self.etsyOptionsControlBox, self,
-				#         value="ETSY_AUTO_START_AUTH",
-				#         label="(Etsy) Auto start auth")
-				#
-				# self.check_ETSY_VERBOSE = gui.checkBox(
-				#         self.etsyOptionsControlBox, self,
-				#         value="ETSY_VERBOSE",
-				#         label="(Etsy) Log to stdout")
-				#
-				# self.check_ETSY_HOST = gui.lineEdit(
-				#     self.etsyOptionsControlBox, self,
-				#     value="ETSY_HOST",
-				#     label="(Etsy) Host")
-				#
-				# # self.check_ETSY_HOST.setMaximumWidth(100)
-				#
-				# self.check_ETSY_PORT = gui.spin(
-				#     self.etsyOptionsControlBox, self,
-				#     minv=1, maxv=65535,
-				#     value="ETSY_PORT",
-				#     label="(Etsy) Port")
 
 				etsy_options_tree = ElementTreeWidget()
 				etsy_options_tree.set_top_level_element(QLabel("Etsy client options"))
@@ -306,6 +287,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.check_FLATTEN_TABLE.setChecked(self.FLATTEN_TABLE)
 
 				def flatten_table_callback(element):
+					self.FLATTEN_TABLE = element.isChecked()
 					if element.checkState() != Qt.PartiallyChecked:
 						self.populateData()
 
@@ -314,43 +296,123 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.flatten_table_tree.set_top_level_element(self.check_FLATTEN_TABLE)
 
+
 				self.check_DISPLAY_FLATTENED_TABLE = QCheckBox("Display flattened table")
 				self.check_DISPLAY_FLATTENED_TABLE.setChecked(self.DISPLAY_FLATTENED_TABLE)
-				self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populateData)
+				def check_DISPLAY_FLATTENED_TABLE_callback(element,):
+					self.DISPLAY_FLATTENED_TABLE = self.check_DISPLAY_FLATTENED_TABLE.isChecked()
+					self.populateData()
+				# self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populateData)
+				self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(check_DISPLAY_FLATTENED_TABLE_callback)
 				self.flatten_table_tree.add_element(self.check_DISPLAY_FLATTENED_TABLE)
 
 				self.check_REMOVE_ORIGINAL_COLUMN = QCheckBox("Remove original column")
 				self.check_REMOVE_ORIGINAL_COLUMN.setChecked(self.REMOVE_ORIGINAL_COLUMN)
-				self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populateData)
+				def check_REMOVE_ORIGINAL_COLUMN_callback(element):
+					self.REMOVE_ORIGINAL_COLUMN = self.check_REMOVE_ORIGINAL_COLUMN.isChecked()
+					self.populateData()
+				# self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populateData)
+				self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(check_REMOVE_ORIGINAL_COLUMN_callback)
 				self.flatten_table_tree.add_element(self.check_REMOVE_ORIGINAL_COLUMN)
 
 				# self.flatten_table_tree = self.build_elements_tree(QCheckBox("Flatten table"), flatten_buttons)
-
 				self.flattenOptionsControlBox.layout().addWidget(self.flatten_table_tree)
+				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
 
-				# # Flatten table checkbox
-				# self.check_FLATTEN_TABLE = gui.checkBox(
-				#         self.flattenOptionsControlBox, self, callback=self.flatten_table_callback,
-				#         value="FLATTEN_TABLE",
-				#         label="Flatten table")
-				#
-				# # Display flattened table checkbox
-				# self.check_DISPLAY_FLATTENED_TABLE = gui.checkBox(
-				#     self.flattenOptionsControlBox, self, callback=self.populateData,
-				#     value="DISPLAY_FLATTENED_TABLE",
-				#     label="(FLATTEN) Display flattened table")
-				#
-				# # REMOVE_ORIGINAL_COLUMN
-				# self.check_REMOVE_ORIGINAL_COLUMN = gui.checkBox(
-				#     self.flattenOptionsControlBox, self, callback=self.populateData,
-				#     value="REMOVE_ORIGINAL_COLUMN",
-				#     label="(FLATTEN) Remove original columns")
 
-				# If flatten table is checked
-				# if not self.check_FLATTEN_TABLE.isChecked():
-				#     # Show the display flattened table checkbox
-				#     self.check_DISPLAY_FLATTENED_TABLE.hide()
-				#     self.check_REMOVE_ORIGINAL_COLUMN.hide()
+				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
+				self.paginate_tree = ElementTreeWidget()
+				self.check_SEQUENCE_REQUESTS = QCheckBox("Paginate requests")
+				self.check_SEQUENCE_REQUESTS.setChecked(self.SEQUENCE_REQUESTS)
+
+				self.paginate_tree.set_top_level_element(self.check_SEQUENCE_REQUESTS)
+
+				# Add some explaination text
+				text = "To surpass the limit of 100 records in a single request, " \
+				       "we can paginate our requests to the API by making multiple " \
+				       "requests and combining the results into a single result. " \
+				       "This is useful if we want to retrieve a large number of records from the API. " \
+				       "By using a slider or other input, we can set the number of requests to paginate. " \
+				       "The total number of results available for this call may be greater than the " \
+				       "number of results returned in a single request. For example, if we want to" \
+				       "retrieve 1000 records, we can page through the results in blocks of 100 by " \
+				       "specifying a limit of 100 and an offset of 0, with the offset being a multiple " \
+				       "of 100 up to 900. This allows us to retrieve all 1000 records by making multiple " \
+				       "requests to the API."
+
+				text_label = QLabel(text)
+				text_label.setWordWrap(True)
+				text_label.setContentsMargins(10, 10, 10, 20)
+				text_label.setEnabled(False)
+				self.paginate_tree.add_element(text_label)
+				# text_label.setStyleSheet("QLabel:hover {color: black;text-decora    tion: none;}")
+
+				self.paginateSlider = QLabeledRangeSlider()
+				self.paginateSlider.setOrientation(Qt.Horizontal)
+				self.paginateSlider.setRange(1, 1000)
+				self.paginateSlider.setTickInterval(100)
+				self.paginateSlider.setEnabled(False)
+
+				# add a tooltip that explains the slider and shows the current values
+				self.paginateSlider.setToolTip("To retrieve more than 100 records, paginate requests "
+				                  "and combine results. Use slider to set number of requests. "
+				                  "Example: to retrieve 1000 records, use limit=100&offset=0 with "
+				                  "offset as multiple of 100 up to 900.") #+ str(self.SEQUENCE_REQUESTS_NUMBER))
+
+
+				self.paginateSlider.setFixedHeight(100)
+				self.paginateSlider.setFixedWidth(400)
+
+				def dummy_request_function(offset,limit):
+					base_url = "https://www.etsy.com/api/results"
+					url = f"{base_url}?offset={offset}&limit={limit}"
+					print(url)
+					return {"results": [offset]}
+
+				def test_pagination(_range, request_function, limit=100):
+					offsets_and_limits = []
+					num_results = _range[1] - _range[0] + 1  # calculate the total number of results in the range
+					num_pages = num_results // limit + 1  # calculate the total number of pages based on the pagination limit of 100 results per page
+					for i in range(num_pages):
+						offset = _range[0] + i * limit  # calculate the offset for the current page of results
+						offsets_and_limits.append((offset, limit))  # add the offset and limit to the list of offsets and limits
+					return offsets_and_limits
+
+				def on_slider_valueChanged(value):
+					self.etsy_request_offsets_and_limits = test_pagination(_range=value,
+					                request_function=dummy_request_function,
+					                limit=self.paginateLimitValue)
+
+				self.paginateSlider.valueChanged.connect(on_slider_valueChanged)
+
+				paginateLimit = QSpinBox()
+				paginateLimit.setRange(1, self.paginateLimitValue)
+				paginateLimit.setValue(self.paginateLimitValue)
+
+				self.paginateLimitLabelBox, self.paginateLimitLabel, self.paginateLimitSpinner \
+					= self.build_element_with_label_layout(
+					"Limit",
+					paginateLimit,
+					ret_all_elements=True
+				)
+
+				self.paginateLimitLabel.setEnabled(False)
+
+				self.paginateLimitSpinner.valueChanged.connect(lambda value : setattr(self, "paginateLimitValue", value))
+				self.paginateLimitSpinner.setEnabled(False)
+
+				self.paginate_tree.add_element(QLabel(""))
+
+				self.paginate_tree.add_element(self.layout_to_element(self.paginateLimitLabelBox))
+
+				self.paginate_tree.add_element(QLabel(""))
+
+				self.paginate_tree.add_element(self.paginateSlider)
+				self.paginateOptionsControlBox.layout().addWidget(self.paginate_tree)
+
+				self.check_SEQUENCE_REQUESTS.stateChanged.connect(
+					lambda : self.toggle_elements_enabled([text_label, self.paginateSlider, self.paginateLimitSpinner, self.paginateLimitLabel]))
+
 
 				self.refresh_data_button = gui.button(
 					self.controlBox, self, "Reload existing data",

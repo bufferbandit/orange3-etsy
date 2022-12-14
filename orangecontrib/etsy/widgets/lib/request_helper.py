@@ -1,4 +1,5 @@
 import traceback
+from asyncio import Lock
 
 from etsyv3.etsy_api import BadRequest, Unauthorised, NotFound, InternalError, Forbidden, Conflict
 # from rich import traceback
@@ -12,6 +13,8 @@ class RequestHelper:
 		self.send_request()
 
 	def send_request(self):
+		# add an asyncio Lock
+		self.request_lock = Lock()
 		self.change_app_status_label("Sending request")
 		try:
 
