@@ -25,7 +25,9 @@ from Orange.widgets.widget import OWWidget, Output, Msg
 from AnyQt import QtWidgets
 from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox, QSlider, QDoubleSpinBox, QComboBox, QAbstractItemView, \
 	QCheckBox, QSpinBox, QLabel, QSpacerItem
-from qtrangeslider import QLabeledRangeSlider
+from superqt import QLabeledRangeSlider
+
+# from qtrangeslider import QLabeledRangeSlider
 
 from orangecontrib.etsy.widgets.lib.etsy_api_client import EtsyOAuth2Client
 from orangecontrib.etsy.widgets.lib.qjsonmodel import QJsonModel
@@ -45,7 +47,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 	priority = 100
 	keywords = ["Etsy", "API", "data", "web", "table"]
 
-	DEBUG = 1
+	DEBUG = False
 
 	class Outputs:
 		data = Output("Etsy API data", Table)
@@ -54,7 +56,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		transform_err = Msg("Data does not fit to domain")
 
 	settingsHandler = CreateTableContextHandler()
-	DEFAULT_DATA = [[None] * 8 for y in range(20)]
+	DEFAULT_DATA = [[None] * 7 for y in range(20)]
 
 	# since data is a small (at most 20x20) table we can afford to store it
 	# as a context
@@ -184,7 +186,10 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# Set alignment top
 				self.controlBox.layout().setAlignment(Qt.AlignTop)
 				self.controlArea.layout().setAlignment(Qt.AlignTop)
-				self.controlBox.setMinimumWidth(250)
+				# self.controlBox.setMinimumWidth(300)
+				self.controlBox.setMaximumWidth(350)
+
+
 
 			def setup_info_box():
 				nonlocal self
@@ -324,6 +329,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.flattenOptionsControlBox.layout().addWidget(self.flatten_table_tree)
 				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
 
+				# self.paginateOptionsControlBox.setMinimumHeight(800)
 
 				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
 				self.paginate_tree = ElementTreeWidget()
@@ -347,7 +353,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				text_label = QLabel(text)
 				text_label.setWordWrap(True)
-				text_label.setContentsMargins(10, 10, 10, 20)
+				# text_label.setContentsMargins(10, 10, 10, 20)
 				text_label.setEnabled(False)
 				self.paginate_tree.add_element(text_label)
 				# text_label.setStyleSheet("QLabel:hover {color: black;text-decora    tion: none;}")
@@ -366,8 +372,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				                  "offset as multiple of 100 up to 900.") #+ str(self.SEQUENCE_REQUESTS_NUMBER))
 
 
-				self.paginateSlider.setFixedHeight(100)
-				self.paginateSlider.setFixedWidth(400)
+				# self.paginateSlider.setFixedHeight(100)
+				# self.paginateSlider.setFixedWidth(400)
 
 				def dummy_request_function(offset,limit):
 					base_url = "https://www.etsy.com/api/results"

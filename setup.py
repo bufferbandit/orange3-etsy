@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 NAME = "Orange3-Etsy"
 
-VERSION = "47.0.0"
+VERSION = "1.0.0"
 
 DESCRIPTION = "Orange widget for using the Etsy API and its data."
 
@@ -31,7 +31,7 @@ INSTALL_REQUIRES = [
     "Orange3 >=3.31.1",
     "BeautifulSoup4",
     "requests",
-    "qtrangeslider",
+    "superqt",
     "numpy",
 ]
 

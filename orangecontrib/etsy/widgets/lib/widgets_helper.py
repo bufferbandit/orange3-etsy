@@ -1,4 +1,5 @@
 import json
+import os
 from collections import OrderedDict
 from functools import partial
 
@@ -18,7 +19,8 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 class WidgetsHelper:
     def __init__(self):
-        self.api_reference_json_file = open("./data/api_reference.json", encoding="utf-8")
+        # DATA_PATH = os.path.join(this_dir, "data", "./api_reference.json")
+        self.api_reference_json_file = open(os.path.join( os.path.dirname( __file__ ), "..", "data", "api_reference.json"), encoding="utf-8")
         self.api_reference_json = json.load(self.api_reference_json_file)
         self.parameters = self.get_parameters()
 
@@ -251,7 +253,7 @@ class ElementTreeWidget(QTreeWidget):
         self.setStyleSheet("ElementTreeWidget{background-color: transparent; border: 0px;}")
 
         self.setHeaderHidden(True)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
