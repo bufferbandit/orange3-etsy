@@ -24,6 +24,20 @@ class RequestHelper:
 			res = self.etsy_client_send_request(*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
 			                                    **self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
 
+
+			res = {}
+
+			for offset, limit in self.etsy_request_offsets_and_limits:
+				res = self.etsy_client_send_request(*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
+				                                    **self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
+				                                    offset=offset, limit=limit)
+				# Merge the results with res
+				# res = {**res, **res}
+				print("Just sent a request with offset: {} and limit: {}: ".format(offset, limit), res)
+
+
+
+
 			self.ETSY_API_RESPONSE = res
 			self.change_http_status_label("200 OK", color="green")
 			self.populateData()
@@ -42,6 +56,13 @@ class RequestHelper:
 		except Exception as e:
 			self.change_http_status_label("Unknown error while sending request: ", color="red")
 			raise e
+
+
+	# def combine_dicts(self, *dicts):
+	# 	combined_dict = {}
+	# 	for d in dicts:
+	# 		combined_dict.update(d)
+	# 	return combined_dict
 
 
 	"""

@@ -219,6 +219,17 @@ class SetupHelper:
                 self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
 
             element, label = self.build_pyqt_element_from_parameter(arg_name, elementCallback)
+
+            # if name is offset or limit elements
+            if arg_name == "offset":
+                # save the values to an attribute
+                self.offset_element = element
+            if arg_name == "limit":
+                # save the values to an attribute
+                self.limit_element = element
+
+
+
             if element is not None and label is not None:
                 parent.layout().addWidget(label)
                 parent.layout().addWidget(element)

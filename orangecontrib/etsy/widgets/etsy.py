@@ -112,9 +112,14 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 	paginateLimitValue = Setting(100)
 
-	etsy_request_offsets_and_limits = []
+	etsy_request_offsets_and_limits = [(0,100)]
 
 	request_lock = None
+
+	offset_element = None
+	limit_element = None
+
+	sliderPosition = None
 
 
 
@@ -350,6 +355,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
 				self.paginateSlider.setRange(1, 1000)
+				self.paginateSlider.setSliderPosition([1,self.paginateLimitValue])
 				self.paginateSlider.setTickInterval(100)
 				self.paginateSlider.setEnabled(False)
 
@@ -369,12 +375,15 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					print(url)
 					return {"results": [offset]}
 
-				def test_pagination(_range, request_function, limit=100):
+				def test_pagination(_range, request_function, limit=100): # 25
 					offsets_and_limits = []
 					num_results = _range[1] - _range[0] + 1  # calculate the total number of results in the range
 					num_pages = num_results // limit + 1  # calculate the total number of pages based on the pagination limit of 100 results per page
 					for i in range(num_pages):
 						offset = _range[0] + i * limit  # calculate the offset for the current page of results
+						# if it's the last one and there's less then the limit number of results left, set the limit to the number of results left
+						if i == num_pages - 1 and num_results % limit != 0:
+							limit = num_results % limit
 						offsets_and_limits.append((offset, limit))  # add the offset and limit to the list of offsets and limits
 					return offsets_and_limits
 
@@ -382,6 +391,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					self.etsy_request_offsets_and_limits = test_pagination(_range=value,
 					                request_function=dummy_request_function,
 					                limit=self.paginateLimitValue)
+					print(self.etsy_request_offsets_and_limits)
 
 				self.paginateSlider.valueChanged.connect(on_slider_valueChanged)
 
@@ -395,10 +405,18 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					paginateLimit,
 					ret_all_elements=True
 				)
-
 				self.paginateLimitLabel.setEnabled(False)
+				def paginateLimitSpinnerCallback(value):
+					if self.sliderPosition:
+						_min = self.sliderPosition.sliderPosition()[0]
+						_max = (self.sliderPosition.sliderPosition()[0] + self.paginateLimitValue) - 1
+					else:
+						_min = 1
+						_max = self.paginateLimitValue
+					self.paginateSlider.setSliderPosition([_min,_max])
+					setattr(self, "paginateLimitValue", value)
 
-				self.paginateLimitSpinner.valueChanged.connect(lambda value : setattr(self, "paginateLimitValue", value))
+				self.paginateLimitSpinner.valueChanged.connect(paginateLimitSpinnerCallback)
 				self.paginateLimitSpinner.setEnabled(False)
 
 				self.paginate_tree.add_element(QLabel(""))
@@ -410,8 +428,22 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.paginate_tree.add_element(self.paginateSlider)
 				self.paginateOptionsControlBox.layout().addWidget(self.paginate_tree)
 
-				self.check_SEQUENCE_REQUESTS.stateChanged.connect(
-					lambda : self.toggle_elements_enabled([text_label, self.paginateSlider, self.paginateLimitSpinner, self.paginateLimitLabel]))
+				def check_SEQUENCE_REQUESTS_callback(data):
+					self.toggle_elements_enabled(
+						[text_label, self.paginateSlider, self.paginateLimitSpinner, self.paginateLimitLabel])
+					if self.check_SEQUENCE_REQUESTS.isChecked():
+						if self.offset_element:
+							self.offset_element.setEnabled(False)
+						if self.limit_element:
+							self.limit_element.setEnabled(False)
+					else:
+						if self.offset_element:
+							self.offset_element.setEnabled(True)
+						if self.limit_element:
+							self.limit_element.setEnabled(True)
+
+
+				self.check_SEQUENCE_REQUESTS.stateChanged.connect(check_SEQUENCE_REQUESTS_callback)
 
 
 				self.refresh_data_button = gui.button(
