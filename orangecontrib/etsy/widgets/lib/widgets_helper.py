@@ -237,6 +237,17 @@ class SetupHelper:
                 parent.layout().addWidget(element)
 
 
+    def disable_qgroupbox_and_grayout_title(self, groupbox):
+        groupbox.setEnabled(False)
+        self.add_to_stylesheet(groupbox, "QGroupBox { color: gray; }")
+
+    def enable_qgroupbox_and_color_title(self, groupbox, color="black"):
+        groupbox.setEnabled(True)
+        self.add_to_stylesheet(groupbox, "QGroupBox::title {color: " + color + ";}")
+
+    def add_to_stylesheet(self, element, style):
+        element.setStyleSheet(element.styleSheet() + style)
+
 
 class ElementTreeWidget(QTreeWidget):
     def __init__(self, top_level_element=None, elements=None):

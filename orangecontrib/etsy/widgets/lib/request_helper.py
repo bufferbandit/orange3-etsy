@@ -51,16 +51,18 @@ class RequestHelper:
 
 			# if self.ETSY_API_CLIENT_SEND_REQUEST_ARGS
 
-			res = {}
+			combined_response_res = {}
+			response_offset_dict = {}
 			for offset, limit in self.etsy_request_offsets_and_limits:
 				new_res = self.etsy_client_send_request(*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
 				                                    **self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
 				                                    offset=offset, limit=limit)
-				res = self.combine_dicts(new_res, res) #, ints_whitelist=["count"], list_whitelist=["results"])
+				combined_response_res = self.combine_dicts(new_res, combined_response_res) #, ints_whitelist=["count"], list_whitelist=["results"])
+				response_offset_dict[offset] = new_res
 
-			pprint(res)
+			pprint(response_offset_dict)
 
-			self.ETSY_API_RESPONSE = res
+			self.ETSY_API_RESPONSE = combined_response_res
 			self.change_http_status_label("200 OK", color="green")
 			self.populateData()
 		except BadRequest as e:

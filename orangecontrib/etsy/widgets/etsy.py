@@ -162,8 +162,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		# show the button again
 		self.refresh_data_button.show()
 
-		self.flattenOptionsControlBox.setEnabled(True)
-		self.flattenOptionsControlBox.setStyleSheet("QGroupBox::title {color: black;}")
+		self.enable_qgroupbox_and_color_title(self.flattenOptionsControlBox)
 
 		# Populate tree view
 		self.tree_model = QJsonModel()
@@ -353,12 +352,13 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				#### PAGINATE
 				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
-				self.paginateOptionsControlBox.setEnabled(False)
+				# self.paginateOptionsControlBox.setEnabled(False)
 
 				self.paginateOptionsControlBox.setMinimumHeight(300)
 
 				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
 				self.paginateTreeMenu = ElementTreeWidget()
+				self.disable_qgroupbox_and_grayout_title(self.paginateTreeMenu)
 				self.check_SEQUENCE_REQUESTS = QCheckBox("Paginate requests")
 				self.check_SEQUENCE_REQUESTS.setChecked(self.SEQUENCE_REQUESTS)
 
@@ -404,8 +404,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.flattenOptionsControlBox = gui.vBox(self.controlBox, "Flatten")
 				self.flattenOptionsControlBox.setEnabled(False)
-				self.flattenOptionsControlBox.setStyleSheet("QGroupBox::title {color: gray;}")
-
+				self.disable_qgroupbox_and_grayout_title(self.flattenOptionsControlBox)
 
 				self.flatten_table_tree = ElementTreeWidget()
 
@@ -543,8 +542,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				# Set the style of the box to the color gray only
 				# "QGroupBox { border: 1px solid gray; border-radius: 9px; margin-top: 0.5em; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px 0 3px; }"
-				self.required_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
-				self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
+				self.disable_qgroupbox_and_grayout_title(self.required_parameters_box)
+				self.disable_qgroupbox_and_grayout_title(self.optional_parameters_box)
 
 				self.required_parameters_box.setEnabled(False)
 				self.optional_parameters_box.setEnabled(False)
@@ -722,11 +721,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			port=self.ETSY_PORT
 		)
 
-		self.required_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
-		self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
-
-		self.required_parameters_box.setEnabled(True)
-		self.optional_parameters_box.setEnabled(True)
+		self.enable_qgroupbox_and_color_title(self.required_parameters_box)
+		self.enable_qgroupbox_and_color_title(self.optional_parameters_box)
 
 		self.searchBox.setEnabled(True)
 
