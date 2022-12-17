@@ -211,9 +211,9 @@ class SetupHelper:
         for arg_name in self.CURR_SELECTED_METHOD_ARGS:
             parameter = self.parameters.get(arg_name)
 
-            parent = self.settings_box1 \
+            parent = self.required_parameters_box \
                         if (parameter["required"] if parameter else False) \
-                            else self.settings_box2
+                            else self.optional_parameters_box
 
             def elementCallback(data, widget=None):
                 nonlocal self
@@ -235,12 +235,7 @@ class SetupHelper:
             if element is not None and label is not None:
                 parent.layout().addWidget(label)
                 parent.layout().addWidget(element)
-    def populate_search_box(self):
-        # self.searchBox.clear()
-        for route in self.ETSY_ROUTES:
-            method_name, url, verb = route[0], route[1], route[4]
-            if verb in [k for k, v in self.selected_methods.items() if v]:
-                self.searchBox.addItem(f"[{verb}] {method_name} -> {url}")
+
 
 
 class ElementTreeWidget(QTreeWidget):

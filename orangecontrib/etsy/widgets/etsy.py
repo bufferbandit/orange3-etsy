@@ -69,7 +69,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 	ETSY_API_TOKEN = Setting(None)
 	ETSY_AUTO_CLOSE_BROWSER = Setting(True)
 	ETSY_AUTO_REFRESH_TOKEN = Setting(True)
-	ETSY_AUTO_START_AUTH = Setting(True)
+	ETSY_AUTO_START_AUTH = Setting(False)
 	ETSY_VERBOSE = Setting(False)
 	ETSY_HOST = Setting("localhost")
 	ETSY_PORT = Setting(5000)
@@ -127,10 +127,21 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 	def __init__(self):
 		super().__init__()
+		self.ETSY_API_CLIENT = EtsyOAuth2Client(
+			api_token=self.ETSY_API_TOKEN,
+			auto_close_browser=self.ETSY_AUTO_CLOSE_BROWSER,
+			auto_refresh_token=self.ETSY_AUTO_REFRESH_TOKEN,
+			auto_start_auth=self.ETSY_AUTO_START_AUTH,
+			verbose=self.ETSY_VERBOSE,
+			host=self.ETSY_HOST,
+			port=self.ETSY_PORT
+		)
 		WidgetsHelper.__init__(self)
 		RequestHelper.__init__(self)
 		self.setup_ui()
 		self.setup_custom_exception_hook()
+
+
 
 	def setup_custom_exception_hook(self):
 		def exception_hook(exctype, value, traceback):
@@ -151,6 +162,9 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		# if True: # self.df is not None:
 		# show the button again
 		self.refresh_data_button.show()
+
+		self.flattenOptionsControlBox.setEnabled(True)
+		self.flattenOptionsControlBox.setStyleSheet("QGroupBox::Title {color: black;}")
 
 		# Populate tree view
 		self.tree_model = QJsonModel()
@@ -175,7 +189,52 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		table = self.pandas_to_orange(self.df)
 		self.Outputs.data.send(table)
 
+	def populate_search_box(self):
+		self.ETSY_ROUTES = list(self.ETSY_API_CLIENT.get_api_routes())
+		# method_name, uri_val, method, params, verb
+		self.ETSY_ROUTES_DICT_METHOD_NAME_KEY = {route[0]: route for route in self.ETSY_ROUTES}
+		self.ETSY_ROUTES_DICT_URL_KEY = {route[1]: route for route in self.ETSY_ROUTES}
+		if self.ETSY_ROUTES:
+			self.change_app_status_label("API routes successfully retrieved")
+		self.searchBox.clear()
+		# self.populate_search_box()
+
+		# self.searchBox.clear()
+		for route in self.ETSY_ROUTES:
+			method_name, url, verb = route[0], route[1], route[4]
+			if verb in [k for k, v in self.selected_methods.items() if v]:
+				self.searchBox.addItem(f"[{verb}] {method_name} -> {url}")
+
 	def setup_ui(self):
+
+		def setup_search_box():
+			nonlocal self
+			self.searchBox = SearchBarComboBox(self.mainArea)
+
+			def searchBoxCallback(bar_text):
+				nonlocal self
+				# bar_text = self.searchBox.currentText()
+				method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
+				method_name_match = method_name_regex.match(bar_text)
+
+				if method_name_match:
+					method_name = method_name_match.group(2)
+					self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
+					self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[
+						method_name]
+
+					self.etsy_client_send_request = self.CURR_SELECTED_METHOD
+
+					# clear layouts
+					self.clear_element(self.required_parameters_box)
+					self.clear_element(self.optional_parameters_box)
+					self.setup_arg_elements()
+
+			self.searchBox.currentTextChanged.connect(searchBoxCallback)
+			self.searchBox.show()
+			self.populate_search_box()
+			self.searchBox.setDisabled(True)
+
 		def setup_sidebar():
 			nonlocal self
 
@@ -194,29 +253,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			def setup_info_box():
 				nonlocal self
 
-				http_tree_menu = ElementTreeWidget()
-				http_tree_menu.set_top_level_element(QLabel("HTTP verbs"))
-
-
-
-				def build_method_button(method):
-					cb = QCheckBox(method)
-					cb.setChecked(self.selected_methods[method])
-					def on_cb_state_changed(state):
-						self.selected_methods.update({method: state == Qt.Checked})
-						self.searchBox.clear()
-						self.populate_search_box()
-					cb.stateChanged.connect(on_cb_state_changed)
-					return cb
-
-				# loop through the methods and add them to the tree
-				for method in self.selected_methods.keys():
-					method_cb = build_method_button(method)
-					http_tree_menu.add_element(method_cb)
-
-				self.controlBox.layout().addWidget(http_tree_menu)
-
-
+				#### ETSY CLIENT OPTIONS
 				self.etsyOptionsControlBox = gui.vBox(self.controlBox, "Etsy")
 
 
@@ -242,14 +279,14 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					lambda: setattr(self, "ETSY_AUTO_REFRESH_TOKEN", self.check_ETSY_AUTO_REFRESH_TOKEN.isChecked()))
 				etsy_options_tree.add_element(self.check_ETSY_AUTO_REFRESH_TOKEN)
 
-				self.check_ETSY_AUTO_START_AUTH = QCheckBox("Auto start auth")
-				self.check_ETSY_AUTO_START_AUTH.setChecked(self.ETSY_AUTO_START_AUTH)
-				# self.check_ETSY_AUTO_START_AUTH.stateChanged.connect(self.on_check_ETSY_AUTO_START_AUTH_stateChanged)
-				# self.etsyOptionsControlBox.layout().addWidget(self.check_ETSY_AUTO_START_AUTH)
-				# couple the checkbox to the setting
-				self.check_ETSY_AUTO_START_AUTH.stateChanged.connect(
-					lambda: setattr(self, "ETSY_AUTO_START_AUTH", self.check_ETSY_AUTO_START_AUTH.isChecked()))
-				etsy_options_tree.add_element(self.check_ETSY_AUTO_START_AUTH)
+				# self.check_ETSY_AUTO_START_AUTH = QCheckBox("Auto start auth")
+				# self.check_ETSY_AUTO_START_AUTH.setChecked(self.ETSY_AUTO_START_AUTH)
+				# # self.check_ETSY_AUTO_START_AUTH.stateChanged.connect(self.on_check_ETSY_AUTO_START_AUTH_stateChanged)
+				# # self.etsyOptionsControlBox.layout().addWidget(self.check_ETSY_AUTO_START_AUTH)
+				# # couple the checkbox to the setting
+				# self.check_ETSY_AUTO_START_AUTH.stateChanged.connect(
+				# 	lambda: setattr(self, "ETSY_AUTO_START_AUTH", self.check_ETSY_AUTO_START_AUTH.isChecked()))
+				# etsy_options_tree.add_element(self.check_ETSY_AUTO_START_AUTH)
 
 				self.check_ETSY_VERBOSE = QCheckBox("Log to stdout")
 				self.check_ETSY_VERBOSE.setChecked(self.ETSY_VERBOSE)
@@ -289,47 +326,35 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.check_ETSY_HOST.setAlignment(Qt.AlignTop)
 
-				self.flattenOptionsControlBox = gui.vBox(self.controlBox, "Flatten")
+				#### HTTP OPTIONS
 
-				self.flatten_table_tree = ElementTreeWidget()
+				http_tree_menu = ElementTreeWidget()
+				http_tree_menu.set_top_level_element(QLabel("HTTP verbs"))
 
-				self.check_FLATTEN_TABLE = QCheckBox("Flatten table")
-				self.check_FLATTEN_TABLE.setChecked(self.FLATTEN_TABLE)
+				def build_method_button(method):
+					cb = QCheckBox(method)
+					cb.setChecked(self.selected_methods[method])
 
-				def flatten_table_callback(element):
-					self.FLATTEN_TABLE = element.isChecked()
-					if element.checkState() != Qt.PartiallyChecked:
-						self.populateData()
+					def on_cb_state_changed(state):
+						self.selected_methods.update({method: state == Qt.Checked})
+						self.searchBox.clear()
+						self.populate_search_box()
 
-				self.check_FLATTEN_TABLE.stateChanged.connect(
-					partial(flatten_table_callback, element=self.check_FLATTEN_TABLE))
+					cb.stateChanged.connect(on_cb_state_changed)
+					return cb
 
-				self.flatten_table_tree.set_top_level_element(self.check_FLATTEN_TABLE)
+				# loop through the methods and add them to the tree
+				for method in self.selected_methods.keys():
+					method_cb = build_method_button(method)
+					http_tree_menu.add_element(method_cb)
+
+				self.controlBox.layout().addWidget(http_tree_menu)
 
 
-				self.check_DISPLAY_FLATTENED_TABLE = QCheckBox("Display flattened table")
-				self.check_DISPLAY_FLATTENED_TABLE.setChecked(self.DISPLAY_FLATTENED_TABLE)
-				def check_DISPLAY_FLATTENED_TABLE_callback(element,):
-					self.DISPLAY_FLATTENED_TABLE = self.check_DISPLAY_FLATTENED_TABLE.isChecked()
-					self.populateData()
-				# self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populateData)
-				self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(check_DISPLAY_FLATTENED_TABLE_callback)
-				self.flatten_table_tree.add_element(self.check_DISPLAY_FLATTENED_TABLE)
-
-				self.check_REMOVE_ORIGINAL_COLUMN = QCheckBox("Remove original column")
-				self.check_REMOVE_ORIGINAL_COLUMN.setChecked(self.REMOVE_ORIGINAL_COLUMN)
-				def check_REMOVE_ORIGINAL_COLUMN_callback(element):
-					self.REMOVE_ORIGINAL_COLUMN = self.check_REMOVE_ORIGINAL_COLUMN.isChecked()
-					self.populateData()
-				# self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populateData)
-				self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(check_REMOVE_ORIGINAL_COLUMN_callback)
-				self.flatten_table_tree.add_element(self.check_REMOVE_ORIGINAL_COLUMN)
-
-				# self.flatten_table_tree = self.build_elements_tree(QCheckBox("Flatten table"), flatten_buttons)
-				self.flattenOptionsControlBox.layout().addWidget(self.flatten_table_tree)
+				#### PAGINATE
 				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
 
-				# self.paginateOptionsControlBox.setMinimumHeight(800)
+				self.paginateOptionsControlBox.setMinimumHeight(300)
 
 				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
 				self.paginate_tree = ElementTreeWidget()
@@ -367,13 +392,57 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				# add a tooltip that explains the slider and shows the current values
 				self.paginateSlider.setToolTip("To retrieve more than 100 records, paginate requests "
-				                  "and combine results. Use slider to set number of requests. "
-				                  "Example: to retrieve 1000 records, use limit=100&offset=0 with "
-				                  "offset as multiple of 100 up to 900.") #+ str(self.SEQUENCE_REQUESTS_NUMBER))
-
+				                               "and combine results. Use slider to set number of requests. "
+				                               "Example: to retrieve 1000 records, use limit=100&offset=0 with "
+				                               "offset as multiple of 100 up to 900.")  # + str(self.SEQUENCE_REQUESTS_NUMBER))
 
 				# self.paginateSlider.setFixedHeight(100)
 				# self.paginateSlider.setFixedWidth(400)
+
+				#### FLATTEN
+
+				self.flattenOptionsControlBox = gui.vBox(self.controlBox, "Flatten")
+				self.flattenOptionsControlBox.setEnabled(False)
+				self.flattenOptionsControlBox.setStyleSheet("QGroupBox::Title {color: gray;}")
+
+
+				self.flatten_table_tree = ElementTreeWidget()
+
+				self.check_FLATTEN_TABLE = QCheckBox("Flatten table")
+				self.check_FLATTEN_TABLE.setChecked(self.FLATTEN_TABLE)
+
+				def flatten_table_callback(element):
+					self.FLATTEN_TABLE = element.isChecked()
+					if element.checkState() != Qt.PartiallyChecked:
+						self.populateData()
+
+				self.check_FLATTEN_TABLE.stateChanged.connect(
+					partial(flatten_table_callback, element=self.check_FLATTEN_TABLE))
+
+				self.flatten_table_tree.set_top_level_element(self.check_FLATTEN_TABLE)
+
+
+				self.check_DISPLAY_FLATTENED_TABLE = QCheckBox("Display flattened table")
+				self.check_DISPLAY_FLATTENED_TABLE.setChecked(self.DISPLAY_FLATTENED_TABLE)
+				def check_DISPLAY_FLATTENED_TABLE_callback(element,):
+					self.DISPLAY_FLATTENED_TABLE = self.check_DISPLAY_FLATTENED_TABLE.isChecked()
+					self.populateData()
+				# self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populateData)
+				self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(check_DISPLAY_FLATTENED_TABLE_callback)
+				self.flatten_table_tree.add_element(self.check_DISPLAY_FLATTENED_TABLE)
+
+				self.check_REMOVE_ORIGINAL_COLUMN = QCheckBox("Remove original column")
+				self.check_REMOVE_ORIGINAL_COLUMN.setChecked(self.REMOVE_ORIGINAL_COLUMN)
+				def check_REMOVE_ORIGINAL_COLUMN_callback(element):
+					self.REMOVE_ORIGINAL_COLUMN = self.check_REMOVE_ORIGINAL_COLUMN.isChecked()
+					self.populateData()
+				# self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populateData)
+				self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(check_REMOVE_ORIGINAL_COLUMN_callback)
+				self.flatten_table_tree.add_element(self.check_REMOVE_ORIGINAL_COLUMN)
+
+				# self.flatten_table_tree = self.build_elements_tree(QCheckBox("Flatten table"), flatten_buttons)
+				self.flattenOptionsControlBox.layout().addWidget(self.flatten_table_tree)
+
 
 				def dummy_request_function(offset,limit):
 					base_url = "https://www.etsy.com/api/results"
@@ -462,17 +531,22 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				nonlocal self
 				self.controlBox.layout().addSpacing(40)
 				# Settings box
-				self.settings_box1 = gui.widgetBox(self.controlBox, "Required parameters)")
-				self.settings_box2 = gui.widgetBox(self.controlBox, "Optional parameters")
+				self.required_parameters_box = gui.widgetBox(self.controlBox, "Required parameters")
+				self.optional_parameters_box = gui.widgetBox(self.controlBox, "Optional parameters")
 				if not self.etsy_api_function_params:
-					gui.widgetLabel(self.settings_box1, "No route selected. Please select a function.")
-					self.settings_box1.layout().addSpacing(40)
+					# gui.widgetLabel(self.settings_box1, "No route selected. Please select a function.")
+					self.required_parameters_box.layout().addSpacing(40)
 
-					gui.widgetLabel(self.settings_box2, "No route selected. Please select a function.")
-					self.settings_box2.layout().addSpacing(40)
+					gui.widgetLabel(self.optional_parameters_box, "No route selected. Please select a function.")
+					self.optional_parameters_box.layout().addSpacing(40)
 
-				# self.settings_box1.hide()
-				# self.settings_box2.hide()
+				# Set the style of the box to the color gray only
+				# "QGroupBox { border: 1px solid gray; border-radius: 9px; margin-top: 0.5em; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px 0 3px; }"
+				self.required_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
+				self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
+
+				self.required_parameters_box.setDisabled(True)
+				self.optional_parameters_box.setDisabled(True)
 
 			def setup_buttons_area():
 				nonlocal self
@@ -483,30 +557,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					if ok:
 						if text:
 							self.ETSY_API_TOKEN = text
-							self.change_app_status_label("API successfully set")
-							self.setTokenButton.setText("Re-authenticate")
-							self.sendRequestButton.setEnabled(True)
-							self.sendRequestButton.setText("Send request")
-
-							self.sendRequestButton.clicked.connect(self.dispatch_request)
-
-							self.ETSY_API_CLIENT = EtsyOAuth2Client(
-								api_token=self.ETSY_API_TOKEN,
-								auto_close_browser=self.ETSY_AUTO_CLOSE_BROWSER,
-								auto_refresh_token=self.ETSY_AUTO_REFRESH_TOKEN,
-								auto_start_auth=self.ETSY_AUTO_START_AUTH,
-								verbose=self.ETSY_VERBOSE,
-								host=self.ETSY_HOST,
-								port=self.ETSY_PORT
-							)
-							self.ETSY_ROUTES = list(self.ETSY_API_CLIENT.get_api_routes())
-							# method_name, uri_val, method, params, verb
-							self.ETSY_ROUTES_DICT_METHOD_NAME_KEY = {route[0]: route for route in self.ETSY_ROUTES}
-							self.ETSY_ROUTES_DICT_URL_KEY = {route[1]: route for route in self.ETSY_ROUTES}
-							if self.ETSY_ROUTES:
-								self.change_app_status_label("API routes successfully retrieved")
-							self.searchBox.clear()
-							self.populate_search_box()
+							self.onAuthenticated()
 						else:
 							QtWidgets.QMessageBox.warning(self, "Error", "API token cannot be empty")
 
@@ -531,35 +582,12 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			setup_settings_box()
 			setup_buttons_area()
 
+
+
+
 		def setup_content():
 			nonlocal self
 			self.mainAreaBox = gui.vBox(self.mainArea, True)
-
-			def setup_search_box():
-				nonlocal self
-				self.searchBox = SearchBarComboBox(self.mainArea)
-
-				def searchBoxCallback(bar_text):
-					nonlocal self
-					# bar_text = self.searchBox.currentText()
-					method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
-					method_name_match = method_name_regex.match(bar_text)
-
-					if method_name_match:
-						method_name = method_name_match.group(2)
-						self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
-						self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[
-							method_name]
-
-						self.etsy_client_send_request = self.CURR_SELECTED_METHOD
-
-						# clear layouts
-						self.clear_element(self.settings_box1)
-						self.clear_element(self.settings_box2)
-						self.setup_arg_elements()
-
-				self.searchBox.currentTextChanged.connect(searchBoxCallback)
-				self.searchBox.show()
 
 			def setup_table():
 				nonlocal self
@@ -619,7 +647,6 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				setup_table()
 				setup_tree()
 
-			setup_search_box()
 			setup_tabs()
 			self.mainAreaBox.layout().addWidget(self.searchBox)
 			self.mainAreaBox.layout().addWidget(self.tabWidget)
@@ -666,9 +693,38 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			setup_http_status("No requests", "black")
 			setup_app_status_label("Ready")
 
-		setup_sidebar()
-		setup_content()
 		setup_statusbar()
+		setup_sidebar()
+		setup_search_box()
+		setup_content()
+
+	def onAuthenticated(self):
+		self.change_app_status_label("API successfully set")
+		self.setTokenButton.setText("Re-authenticate")
+		self.sendRequestButton.setEnabled(True)
+		self.sendRequestButton.setText("Send request")
+
+		self.sendRequestButton.clicked.connect(self.dispatch_request)
+
+		# self.ETSY_API_CLIENT = EtsyOAuth2Client(
+		# Re-initialize the client with the new token
+		self.ETSY_API_CLIENT.__init__(
+			api_token=self.ETSY_API_TOKEN,
+			auto_close_browser=self.ETSY_AUTO_CLOSE_BROWSER,
+			auto_refresh_token=self.ETSY_AUTO_REFRESH_TOKEN,
+			auto_start_auth=self.ETSY_AUTO_START_AUTH,
+			verbose=self.ETSY_VERBOSE,
+			host=self.ETSY_HOST,
+			port=self.ETSY_PORT
+		)
+
+		self.required_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
+		self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
+
+		self.required_parameters_box.setDisabled(False)
+		self.optional_parameters_box.setDisabled(False)
+
+		self.searchBox.setDisabled(False)
 
 	def resizeEvent(self, event):
 		w = self.tableTab.width()

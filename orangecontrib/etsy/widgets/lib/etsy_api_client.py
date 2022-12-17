@@ -70,6 +70,12 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 			if self.verbose: print("Getting refresh token")
 			self.get_refresh_token()
 
+		# Initialize with wrong data, call constructor later again to update
+		if not self.auto_start_auth:
+			self.access_token = "None.None.None"
+			self.refresh_token = "None.None.None"
+			self.expiry = None
+
 		# Initialize base class variables
 		super().__init__(
 			keystring=api_token,
@@ -77,6 +83,18 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 			refresh_token=self.refresh_token,
 			expiry=self.expiry,
 			refresh_save=None)
+
+	# def __late__init(self, access_token, refresh_token, expiry):
+	# 	self.access_token = access_token
+	# 	self.refresh_token = refresh_token
+	# 	self.expiry = expiry
+	# 	# Initialize base class variables
+	# 	super().__init__(
+	# 		keystring=self.api_token,
+	# 		token=self.access_token,
+	# 		refresh_token=self.refresh_token,
+	# 		expiry=self.expiry,
+	# 		refresh_save=None)
 
 	def get_api_routes(self):
 		if self.verbose: print("Getting API routes")
