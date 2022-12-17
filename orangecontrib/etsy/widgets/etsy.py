@@ -156,7 +156,6 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 	def populateData(self):
 		if not self.ETSY_API_RESPONSE:
-			# Show warning message box if no data is available
 			QMessageBox.warning(self, "Warning", "No data available. Please send a request first.")
 			return
 		# if True: # self.df is not None:
@@ -164,7 +163,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		self.refresh_data_button.show()
 
 		self.flattenOptionsControlBox.setEnabled(True)
-		self.flattenOptionsControlBox.setStyleSheet("QGroupBox::Title {color: black;}")
+		self.flattenOptionsControlBox.setStyleSheet("QGroupBox::title {color: black;}")
 
 		# Populate tree view
 		self.tree_model = QJsonModel()
@@ -233,7 +232,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			self.searchBox.currentTextChanged.connect(searchBoxCallback)
 			self.searchBox.show()
 			self.populate_search_box()
-			self.searchBox.setDisabled(True)
+			self.searchBox.setEnabled(False)
 
 		def setup_sidebar():
 			nonlocal self
@@ -257,8 +256,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.etsyOptionsControlBox = gui.vBox(self.controlBox, "Etsy")
 
 
-				etsy_options_tree = ElementTreeWidget()
-				etsy_options_tree.set_top_level_element(QLabel("Etsy client options"))
+				self.etsy_options_tree = ElementTreeWidget()
+				self.etsy_options_tree.set_top_level_element(QLabel("Etsy client options"))
 
 				#  the above widgets but then as pyqt elements
 				self.check_ETSY_AUTO_CLOSE_BROWSER = QCheckBox("Auto close browser")
@@ -268,7 +267,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# couple the checkbox to the setting
 				self.check_ETSY_AUTO_CLOSE_BROWSER.stateChanged.connect(
 					lambda: setattr(self, "ETSY_AUTO_CLOSE_BROWSER", self.check_ETSY_AUTO_CLOSE_BROWSER.isChecked()))
-				etsy_options_tree.add_element(self.check_ETSY_AUTO_CLOSE_BROWSER)
+				self.etsy_options_tree.add_element(self.check_ETSY_AUTO_CLOSE_BROWSER)
 
 				self.check_ETSY_AUTO_REFRESH_TOKEN = QCheckBox("Auto refresh token")
 				self.check_ETSY_AUTO_REFRESH_TOKEN.setChecked(self.ETSY_AUTO_REFRESH_TOKEN)
@@ -277,7 +276,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# couple the checkbox to the setting
 				self.check_ETSY_AUTO_REFRESH_TOKEN.stateChanged.connect(
 					lambda: setattr(self, "ETSY_AUTO_REFRESH_TOKEN", self.check_ETSY_AUTO_REFRESH_TOKEN.isChecked()))
-				etsy_options_tree.add_element(self.check_ETSY_AUTO_REFRESH_TOKEN)
+				self.etsy_options_tree.add_element(self.check_ETSY_AUTO_REFRESH_TOKEN)
 
 				# self.check_ETSY_AUTO_START_AUTH = QCheckBox("Auto start auth")
 				# self.check_ETSY_AUTO_START_AUTH.setChecked(self.ETSY_AUTO_START_AUTH)
@@ -286,7 +285,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# # couple the checkbox to the setting
 				# self.check_ETSY_AUTO_START_AUTH.stateChanged.connect(
 				# 	lambda: setattr(self, "ETSY_AUTO_START_AUTH", self.check_ETSY_AUTO_START_AUTH.isChecked()))
-				# etsy_options_tree.add_element(self.check_ETSY_AUTO_START_AUTH)
+				# self.etsy_options_tree.add_element(self.check_ETSY_AUTO_START_AUTH)
 
 				self.check_ETSY_VERBOSE = QCheckBox("Log to stdout")
 				self.check_ETSY_VERBOSE.setChecked(self.ETSY_VERBOSE)
@@ -295,7 +294,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# couple the checkbox to the setting
 				self.check_ETSY_VERBOSE.stateChanged.connect(
 					lambda: setattr(self, "ETSY_VERBOSE", self.check_ETSY_VERBOSE.isChecked()))
-				etsy_options_tree.add_element(self.check_ETSY_VERBOSE)
+				self.etsy_options_tree.add_element(self.check_ETSY_VERBOSE)
 
 				self.check_ETSY_HOST = QLineEdit("Host")
 				self.check_ETSY_HOST.setText(self.ETSY_HOST)
@@ -304,7 +303,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# couple the checkbox to the setting
 				self.check_ETSY_HOST.textChanged.connect(
 					lambda: setattr(self, "ETSY_HOST", self.check_ETSY_HOST.text()))
-				etsy_options_tree.add_element(
+				self.etsy_options_tree.add_element(
 					self.build_element_with_label("Host", self.check_ETSY_HOST))
 
 				self.check_ETSY_PORT = QSpinBox()
@@ -317,10 +316,10 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.check_ETSY_PORT.valueChanged.connect(
 					lambda: setattr(self, "ETSY_PORT", self.check_ETSY_PORT.value()))
 
-				etsy_options_tree.add_element(
+				self.etsy_options_tree.add_element(
 					self.build_element_with_label("Port", self.check_ETSY_PORT))
 
-				self.etsyOptionsControlBox.layout().addWidget(etsy_options_tree)
+				self.etsyOptionsControlBox.layout().addWidget(self.etsy_options_tree)
 
 				# self.etsyOptionsControlBox.setFlat(False)
 
@@ -328,8 +327,9 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				#### HTTP OPTIONS
 
-				http_tree_menu = ElementTreeWidget()
-				http_tree_menu.set_top_level_element(QLabel("HTTP verbs"))
+				self.httpTreeMenu = ElementTreeWidget()
+				self.httpTreeMenu.set_top_level_element(QLabel("HTTP verbs"))
+				self.httpTreeMenu.setEnabled(False)
 
 				def build_method_button(method):
 					cb = QCheckBox(method)
@@ -346,22 +346,23 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# loop through the methods and add them to the tree
 				for method in self.selected_methods.keys():
 					method_cb = build_method_button(method)
-					http_tree_menu.add_element(method_cb)
+					self.httpTreeMenu.add_element(method_cb)
 
-				self.controlBox.layout().addWidget(http_tree_menu)
+				self.controlBox.layout().addWidget(self.httpTreeMenu)
 
 
 				#### PAGINATE
 				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
+				self.paginateOptionsControlBox.setEnabled(False)
 
 				self.paginateOptionsControlBox.setMinimumHeight(300)
 
 				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
-				self.paginate_tree = ElementTreeWidget()
+				self.paginateTreeMenu = ElementTreeWidget()
 				self.check_SEQUENCE_REQUESTS = QCheckBox("Paginate requests")
 				self.check_SEQUENCE_REQUESTS.setChecked(self.SEQUENCE_REQUESTS)
 
-				self.paginate_tree.set_top_level_element(self.check_SEQUENCE_REQUESTS)
+				self.paginateTreeMenu.set_top_level_element(self.check_SEQUENCE_REQUESTS)
 
 				# Add some explaination text
 				text = "To surpass the limit of 100 records in a single request, " \
@@ -380,7 +381,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				text_label.setWordWrap(True)
 				# text_label.setContentsMargins(10, 10, 10, 20)
 				text_label.setEnabled(False)
-				self.paginate_tree.add_element(text_label)
+				self.paginateTreeMenu.add_element(text_label)
 				# text_label.setStyleSheet("QLabel:hover {color: black;text-decora    tion: none;}")
 
 				self.paginateSlider = QLabeledRangeSlider()
@@ -403,7 +404,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.flattenOptionsControlBox = gui.vBox(self.controlBox, "Flatten")
 				self.flattenOptionsControlBox.setEnabled(False)
-				self.flattenOptionsControlBox.setStyleSheet("QGroupBox::Title {color: gray;}")
+				self.flattenOptionsControlBox.setStyleSheet("QGroupBox::title {color: gray;}")
 
 
 				self.flatten_table_tree = ElementTreeWidget()
@@ -493,14 +494,14 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.paginateLimitSpinner.valueChanged.connect(paginateLimitSpinnerCallback)
 				self.paginateLimitSpinner.setEnabled(False)
 
-				self.paginate_tree.add_element(QLabel(""))
+				self.paginateTreeMenu.add_element(QLabel(""))
 
-				self.paginate_tree.add_element(self.layout_to_element(self.paginateLimitLabelBox))
+				self.paginateTreeMenu.add_element(self.layout_to_element(self.paginateLimitLabelBox))
 
-				self.paginate_tree.add_element(QLabel(""))
+				self.paginateTreeMenu.add_element(QLabel(""))
 
-				self.paginate_tree.add_element(self.paginateSlider)
-				self.paginateOptionsControlBox.layout().addWidget(self.paginate_tree)
+				self.paginateTreeMenu.add_element(self.paginateSlider)
+				self.paginateOptionsControlBox.layout().addWidget(self.paginateTreeMenu)
 
 				def check_SEQUENCE_REQUESTS_callback(data):
 					self.toggle_elements_enabled(
@@ -545,8 +546,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.required_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
 				self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:gray}")
 
-				self.required_parameters_box.setDisabled(True)
-				self.optional_parameters_box.setDisabled(True)
+				self.required_parameters_box.setEnabled(False)
+				self.optional_parameters_box.setEnabled(False)
 
 			def setup_buttons_area():
 				nonlocal self
@@ -702,9 +703,12 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		self.change_app_status_label("API successfully set")
 		self.setTokenButton.setText("Re-authenticate")
 		self.sendRequestButton.setEnabled(True)
+		self.httpTreeMenu.setEnabled(True)
 		self.sendRequestButton.setText("Send request")
 
 		self.sendRequestButton.clicked.connect(self.dispatch_request)
+
+		self.flattenOptionsControlBox.setEnabled(False)
 
 		# self.ETSY_API_CLIENT = EtsyOAuth2Client(
 		# Re-initialize the client with the new token
@@ -721,10 +725,10 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		self.required_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
 		self.optional_parameters_box.setStyleSheet("QGroupBox::title { color:black}")
 
-		self.required_parameters_box.setDisabled(False)
-		self.optional_parameters_box.setDisabled(False)
+		self.required_parameters_box.setEnabled(True)
+		self.optional_parameters_box.setEnabled(True)
 
-		self.searchBox.setDisabled(False)
+		self.searchBox.setEnabled(True)
 
 	def resizeEvent(self, event):
 		w = self.tableTab.width()
