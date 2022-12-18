@@ -74,7 +74,8 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		if not self.auto_start_auth:
 			self.access_token = "None.None.None"
 			self.refresh_token = "None.None.None"
-			self.expiry = None
+			# self.expiry = None
+			self.expiry = datetime.datetime.utcnow() + datetime.timedelta(microseconds=1)
 
 		# Initialize base class variables
 		super().__init__(

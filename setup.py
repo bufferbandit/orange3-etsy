@@ -32,6 +32,7 @@ INSTALL_REQUIRES = [
     "BeautifulSoup4",
     "requests",
     "superqt",
+    "qasync",
     "numpy",
 ]
 
