@@ -1,7 +1,5 @@
 import asyncio
-import sys
 import traceback
-from asyncio import Lock
 from pprint import pprint
 
 from PyQt5.QtWidgets import QMessageBox
@@ -79,32 +77,36 @@ class RequestHelper:
 		return combined_response
 
 	async def send_request(self):
-		# add an asyncio Lock
-		self.request_lock = Lock()
 		self.change_app_status_label("Sending request")
 		try:
-			async with asyncio.gather(*[
-				self.etsy_client_send_request(
-					*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
-					**self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
-					offset=offset,
-					limit=limit
-				) for offset, limit in self.etsy_request_offsets_and_limits
-			]) as responses:
-				response_offset_dict = {}
-				for (offset, limit), response in zip(self.etsy_request_offsets_and_limits, responses):
-					key = (offset, limit)
-					response_offset_dict[key] = response
+			tasks = []
+			for offset, limit in self.etsy_request_offsets_and_limits:
+				async def wrapper(*args, **kwargs):
+					return self.etsy_client_send_request(*args, **kwargs)
+				task = asyncio.create_task(
+					wrapper(
+						*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
+						**self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
+						offset=offset,
+						limit=limit
+					)
+				)
+				tasks.append(task)
 
-				# combined_results = await self.combine_results(response_offset_dict)
-				combined_response = await self.combine_responses(response_offset_dict)
+			responses = await asyncio.gather(*tasks)
 
-			# print(combined_results)
-			# print(combined_response)
+			response_offset_dict = {}
+			for (offset, limit), response in zip(self.etsy_request_offsets_and_limits, responses):
+				key = (offset, limit)
+				response_offset_dict[key] = response
+
+			# combined_results = await self.combine_results(response_offset_dict)
+			combined_response = await self.combine_responses(response_offset_dict)
 
 			self.ETSY_API_RESPONSE = combined_response
+
 			self.change_http_status_label("200 OK", color="green")
-			self.populateData()
+			self.populate_data()
 		except BadRequest as e:
 			self.change_http_status_label("400 Bad request", color="red")
 		except Unauthorised as e:
@@ -121,11 +123,18 @@ class RequestHelper:
 			# Re-raising it does not seem to work
 			self.change_http_status_label("Unknown error while sending request: " + e.args[0], color="red")
 			error_msg = f"Unknown error while sending request: {e.__class__.__name__}: {e.args[0]}"
-			self.change_app_status_label(error_msg, "red")
+			self.change_app_status_label(error_msg[:120]+"...", "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
-			self.print_exception(e)
-			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
+
+
+
+			print(self.get_traceback())
+
+
+			QMessageBox.critical(self, "Error", error_msg[:500]+"...", QMessageBox.Ok)
+
+			# raise
 
 	# except Exception as e:
 		# 	self.change_http_status_label("Unknown error while sending request: " +  e.args[0] , color="red")
@@ -165,17 +174,19 @@ class RequestHelper:
 		_get_dict.argtypes = [c.py_object]
 		_get_dict(obj).contents.value[name] = value
 
-	# Somehow (presumably because we'er running async), the function doesnt print
-	# exceptions to the console anymore. This is a workaround.
-	def print_exception(self, e):
-		exception_list = traceback.format_stack()
-		exception_list = exception_list[:-2]
-		exception_list.extend(traceback.format_tb(sys.exc_info()[2]))
-		exception_list.extend(traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1]))
+	# For some stupid reason asyncio functins dont seem to print the stacktrace to the console.
+	# This function is a workaround for that.
+	def get_traceback(self):
+		import traceback, sys
+		exc = sys.exc_info()[0]
+		if exc is not None:
+			f = sys.exc_info()[-1].tb_frame.f_back
+			stack = traceback.extract_stack(f)
+		else:
+			stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
+		trc = 'Traceback (most recent call last):\n'
+		stackstr = trc + ''.join(traceback.format_list(stack))
+		if exc is not None:
+			stackstr += '  ' + traceback.format_exc().lstrip(trc)
+		return stackstr
 
-		exception_str = "Traceback (most recent call last):\n"
-		exception_str += "".join(exception_list)
-		# Removing the last \n
-		exception_str = exception_str[:-1]
-
-		return exception_str

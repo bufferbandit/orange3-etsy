@@ -716,8 +716,17 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.enable_qgroupbox_and_color_title(self.httpVerbsTreeMenu)
 		self.enable_qgroupbox_and_color_title(self.paginateTreeMenu)
 
+		# self.sendRequestButton.clicked.connect(lambda:
+		# 	asyncio.run(asyncio.create_task(self.send_request())))
+
 		self.sendRequestButton.clicked.connect(lambda:\
 			self.loop.run_until_complete(self.send_request()))
+
+		# self.sendRequestButton.clicked.connect(lambda:
+		# 	asyncio.run(asyncio.create_task(self.send_request())))
+
+		# self.sendRequestButton.clicked.connect(lambda: \
+		# 	asyncio.create_task(self.send_request()))
 
 		self.flattenOptionsControlBox.setEnabled(False)
 
