@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import traceback
 from asyncio import Lock
 from pprint import pprint
@@ -60,22 +61,22 @@ class RequestHelper:
 			offset, limit = key
 			response = response_offset_dict[key]
 
-			# Iterate over the key-value pairs in the response dictionary
-			for k, v in response.items():
-				if k not in combined_response:
-					# Add the key-value pair to the combined_response dictionary if the key does not already exist
-					combined_response[k] = v
-				else:
-					# If the key already exists in the combined_response dictionary, merge the value with the existing value
-					existing_value = combined_response[k]
-					if isinstance(existing_value, list):
-						combined_response[k].extend(v)
-					elif isinstance(existing_value, dict):
-						combined_response[k].update(v)
+			# Use a tuple of the offset and limit values as the key in the response_offset_dict dictionary
+			key = (offset, limit)
+			response_offset_dict[key] = response
+
+			if key not in combined_response:
+				# Add the key-value pair to the combined_response dictionary if the key does not already exist
+				combined_response[key] = response
+			else:
+				# If the key already exists in the combined_response dictionary, merge the value with the existing value
+				existing_value = combined_response[key]
+				if isinstance(existing_value, list):
+					combined_response[key].extend(response)
+				elif isinstance(existing_value, dict):
+					combined_response[key].update(response)
 
 		return combined_response
-
-
 
 	async def send_request(self):
 		# add an asyncio Lock
@@ -95,7 +96,7 @@ class RequestHelper:
 					key = (offset, limit)
 					response_offset_dict[key] = response
 
-				combined_results = await self.combine_results(response_offset_dict)
+				# combined_results = await self.combine_results(response_offset_dict)
 				combined_response = await self.combine_responses(response_offset_dict)
 
 			# print(combined_results)
@@ -123,6 +124,7 @@ class RequestHelper:
 			self.change_app_status_label(error_msg, "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
+			self.print_exception(e)
 			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
 
 	# except Exception as e:
@@ -163,3 +165,17 @@ class RequestHelper:
 		_get_dict.argtypes = [c.py_object]
 		_get_dict(obj).contents.value[name] = value
 
+	# Somehow (presumably because we'er running async), the function doesnt print
+	# exceptions to the console anymore. This is a workaround.
+	def print_exception(self, e):
+		exception_list = traceback.format_stack()
+		exception_list = exception_list[:-2]
+		exception_list.extend(traceback.format_tb(sys.exc_info()[2]))
+		exception_list.extend(traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1]))
+
+		exception_str = "Traceback (most recent call last):\n"
+		exception_str += "".join(exception_list)
+		# Removing the last \n
+		exception_str = exception_str[:-1]
+
+		return exception_str
