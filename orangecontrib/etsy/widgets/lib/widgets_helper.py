@@ -80,8 +80,8 @@ class WidgetsHelper:
 
     def binarize_columns(self, df, remove_original_columns=False):
         mlb = MultiLabelBinarizer()
-        all_lists = lambda column: (column.sample(100).apply(type).astype(str) == "<class 'list'>").all(0)
-        any_lists = lambda column: (column.sample(100).apply(type).astype(str) == "<class 'list'>").any(0)
+        all_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").all(0)
+        any_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").any(0)
 
         for column in df.columns:
             if any_lists(df[column]):
