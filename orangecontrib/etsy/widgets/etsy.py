@@ -141,7 +141,6 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			port=self.ETSY_PORT
 		)
 		asyncio.set_event_loop(qasync.QEventLoop(self))
-		self.loop = asyncio.get_event_loop()
 		WidgetsHelper.__init__(self)
 		RequestHelper.__init__(self)
 		self.setup_ui()
@@ -452,13 +451,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.flattenOptionsControlBox.layout().addWidget(self.flattenTableTreeMenu)
 
 
-				def dummy_request_function(offset,limit):
-					base_url = "https://www.etsy.com/api/results"
-					url = f"{base_url}?offset={offset}&limit={limit}"
-					print(url)
-					return {"results": [offset]}
-
-				def test_pagination(_range, request_function, limit=100): # 25
+				def calculate_pagination_offset_and_limits(_range, limit=100): # 25
 					offsets_and_limits = []
 					num_results = _range[1] - _range[0] + 1  # calculate the total number of results in the range
 					num_pages = num_results // limit + 1  # calculate the total number of pages based on the pagination limit of 100 results per page
@@ -471,9 +464,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					return offsets_and_limits
 
 				def on_slider_valueChanged(value):
-					self.etsy_request_offsets_and_limits = test_pagination(_range=value,
-					                request_function=dummy_request_function,
-					                limit=self.paginateLimitValue)
+					self.etsy_request_offsets_and_limits = calculate_pagination_offset_and_limits(
+									_range=value, limit=self.paginateLimitValue )
 
 				self.paginateSlider.valueChanged.connect(on_slider_valueChanged)
 
@@ -510,7 +502,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.paginateTreeMenu.add_element(self.paginateSlider)
 				self.paginateOptionsControlBox.layout().addWidget(self.paginateTreeMenu)
 
-				def check_SEQUENCE_REQUESTS_callback(data):
+				def check_SEQUENCE_REQUESTS_callback(data, widget):
 					self.toggle_elements_enabled(
 						[text_label, self.paginateSlider, self.paginateLimitSpinner, self.paginateLimitLabel])
 					if self.check_SEQUENCE_REQUESTS.isChecked():
@@ -518,14 +510,18 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 							self.offset_element.setEnabled(False)
 						if self.limit_element:
 							self.limit_element.setEnabled(False)
+						self.paginateLimitValue = self.paginateLimitSpinner.value()
+
 					else:
 						if self.offset_element:
 							self.offset_element.setEnabled(True)
 						if self.limit_element:
 							self.limit_element.setEnabled(True)
+						self.paginateLimitValue = self.limit_element.value()
 
 
-				self.check_SEQUENCE_REQUESTS.stateChanged.connect(check_SEQUENCE_REQUESTS_callback)
+				self.check_SEQUENCE_REQUESTS.stateChanged.connect(partial(check_SEQUENCE_REQUESTS_callback,
+				                                                          widget=self.check_SEQUENCE_REQUESTS))
 
 
 				self.refresh_data_button = gui.button(
@@ -717,7 +713,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.enable_qgroupbox_and_color_title(self.paginateTreeMenu)
 
 		self.sendRequestButton.clicked.connect(lambda:\
-			self.loop.run_until_complete(self.send_request()))
+			asyncio.get_event_loop().run_until_complete(self.send_request()))
 
 		self.flattenOptionsControlBox.setEnabled(False)
 

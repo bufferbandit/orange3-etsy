@@ -15,21 +15,23 @@ class RequestHelper:
 		self.override_string_add_attribute(str, "value", property(lambda self: self))
 
 
-	def merge_dicts(self, *dicts):
+	def merge_dicts(self, dicts):
 		merged = {}
-		for item in dicts:
-			for _key, _value in item.items():
+		for _dict in dicts:
+			for _key, _value in _dict.items():
 				offset, limit = _key
 				d = _value
 				for key, value in d.items():
 					# this could be done with checking for __add__ imo, but that doesnt seem to work
-					if isinstance(value, (list, int, tuple)):
+					if isinstance(value, (int, float, list, tuple)):
 						empty_default_object = __builtins__[type(value).__name__]()
 						merged[key] = merged.get(key, empty_default_object) + value
 					else:
+						print("Merged for " + key)
 						merged[key] = value
 		return merged
 	async def send_request(self):
+		print(self.etsy_request_offsets_and_limit)
 		try:
 			tasks = []
 			for offset, limit in self.etsy_request_offsets_and_limits:
@@ -44,7 +46,6 @@ class RequestHelper:
 					)
 				)
 				tasks.append(task)
-
 			results = await asyncio.gather(*tasks)
 			sorted_dicts = sorted(results, key=lambda x: sum(list(x.keys())[0]))
 			merged_dicts = self.merge_dicts(*sorted_dicts)

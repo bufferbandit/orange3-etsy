@@ -75,14 +75,12 @@ class WidgetsHelper:
                 metas[name] = Orange.data.StringVariable(name)
 
         domain = Orange.data.Domain(attributes=attributes.values(), metas=metas.values())
-
         return domain, list(attributes.keys()), list(metas.keys())
 
     def binarize_columns(self, df, remove_original_columns=False):
         mlb = MultiLabelBinarizer()
         all_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").all(0)
         any_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").any(0)
-
         for column in df.columns:
             if any_lists(df[column]):
                 transformed_column = mlb.fit_transform(df[column])
