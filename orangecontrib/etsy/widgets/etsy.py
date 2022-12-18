@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import json
 import os
@@ -9,6 +10,7 @@ from collections import ChainMap
 from functools import partial
 
 import pandas as pd
+import qasync
 from AnyQt import QtGui
 from AnyQt.QtCore import Qt, QSize
 from AnyQt.QtWidgets import QTableView, QLineEdit
@@ -23,6 +25,7 @@ from Orange.widgets.utils.widgetpreview import WidgetPreview
 from Orange.widgets.widget import OWWidget, Output, Msg
 
 from AnyQt import QtWidgets
+from PyQt5.QtCore import QEventLoop
 from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox, QSlider, QDoubleSpinBox, QComboBox, QAbstractItemView, \
 	QCheckBox, QSpinBox, QLabel, QSpacerItem
 from superqt import QLabeledRangeSlider
@@ -40,7 +43,7 @@ from orangecontrib.etsy.widgets.lib.widgets_helper import WidgetsHelper, Element
 from orangecontrib.etsy.widgets.lib.request_helper import RequestHelper
 
 
-class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper):
+class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper):
 	name = "Etsy API"
 	description = "Orange widget for using the Etsy API and its data."
 	icon = "icons/etsy_icon_round.svg"
@@ -125,6 +128,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 
 
+
 	def __init__(self):
 		super().__init__()
 		self.ETSY_API_CLIENT = EtsyOAuth2Client(
@@ -136,10 +140,13 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			host=self.ETSY_HOST,
 			port=self.ETSY_PORT
 		)
+		asyncio.set_event_loop(qasync.QEventLoop(self))
+		self.loop = asyncio.get_event_loop()
 		WidgetsHelper.__init__(self)
 		RequestHelper.__init__(self)
 		self.setup_ui()
 		self.setup_custom_exception_hook()
+
 
 
 
@@ -154,7 +161,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 		sys.excepthook = exception_hook
 
-	def populateData(self):
+	def populate_data(self):
 		if not self.ETSY_API_RESPONSE:
 			QMessageBox.warning(self, "Warning", "No data available. Please send a request first.")
 			return
@@ -232,6 +239,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			self.searchBox.show()
 			self.populate_search_box()
 			self.searchBox.setEnabled(False)
+
 
 		def setup_sidebar():
 			nonlocal self
@@ -326,9 +334,10 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				#### HTTP OPTIONS
 
-				self.httpTreeMenu = ElementTreeWidget()
-				self.httpTreeMenu.set_top_level_element(QLabel("HTTP verbs"))
-				self.httpTreeMenu.setEnabled(False)
+				self.httpVerbsTreeMenu = ElementTreeWidget()
+				self.httpVerbsTreeMenu.set_top_level_element(QLabel("HTTP verbs"))
+				# self.httpVerbsTreeMenu.setEnabled(False)
+				self.disable_qgroupbox_and_grayout_title(self.httpVerbsTreeMenu)
 
 				def build_method_button(method):
 					cb = QCheckBox(method)
@@ -345,16 +354,15 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# loop through the methods and add them to the tree
 				for method in self.selected_methods.keys():
 					method_cb = build_method_button(method)
-					self.httpTreeMenu.add_element(method_cb)
+					self.httpVerbsTreeMenu.add_element(method_cb)
 
-				self.controlBox.layout().addWidget(self.httpTreeMenu)
+				self.controlBox.layout().addWidget(self.httpVerbsTreeMenu)
 
 
 				#### PAGINATE
 				self.paginateOptionsControlBox = gui.vBox(self.controlBox, "Paginate")
-				# self.paginateOptionsControlBox.setEnabled(False)
 
-				self.paginateOptionsControlBox.setMinimumHeight(300)
+				self.paginateOptionsControlBox.setMinimumHeight(500)
 
 				# create a tree thats called sequnce tree and contains sliders with an editable box to set the number of requests to paginate
 				self.paginateTreeMenu = ElementTreeWidget()
@@ -382,7 +390,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				# text_label.setContentsMargins(10, 10, 10, 20)
 				text_label.setEnabled(False)
 				self.paginateTreeMenu.add_element(text_label)
-				# text_label.setStyleSheet("QLabel:hover {color: black;text-decora    tion: none;}")
+				# text_label.setStyleSheet("QLabel:hover {color: black;text-decoration: none;}")
 
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
@@ -406,7 +414,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.flattenOptionsControlBox.setEnabled(False)
 				self.disable_qgroupbox_and_grayout_title(self.flattenOptionsControlBox)
 
-				self.flatten_table_tree = ElementTreeWidget()
+				self.flattenTableTreeMenu = ElementTreeWidget()
 
 				self.check_FLATTEN_TABLE = QCheckBox("Flatten table")
 				self.check_FLATTEN_TABLE.setChecked(self.FLATTEN_TABLE)
@@ -414,34 +422,34 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				def flatten_table_callback(element):
 					self.FLATTEN_TABLE = element.isChecked()
 					if element.checkState() != Qt.PartiallyChecked:
-						self.populateData()
+						self.populate_data()
 
 				self.check_FLATTEN_TABLE.stateChanged.connect(
 					partial(flatten_table_callback, element=self.check_FLATTEN_TABLE))
 
-				self.flatten_table_tree.set_top_level_element(self.check_FLATTEN_TABLE)
+				self.flattenTableTreeMenu.set_top_level_element(self.check_FLATTEN_TABLE)
 
 
 				self.check_DISPLAY_FLATTENED_TABLE = QCheckBox("Display flattened table")
 				self.check_DISPLAY_FLATTENED_TABLE.setChecked(self.DISPLAY_FLATTENED_TABLE)
 				def check_DISPLAY_FLATTENED_TABLE_callback(element,):
 					self.DISPLAY_FLATTENED_TABLE = self.check_DISPLAY_FLATTENED_TABLE.isChecked()
-					self.populateData()
-				# self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populateData)
+					self.populate_data()
+				# self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(self.populate_data)
 				self.check_DISPLAY_FLATTENED_TABLE.stateChanged.connect(check_DISPLAY_FLATTENED_TABLE_callback)
-				self.flatten_table_tree.add_element(self.check_DISPLAY_FLATTENED_TABLE)
+				self.flattenTableTreeMenu.add_element(self.check_DISPLAY_FLATTENED_TABLE)
 
 				self.check_REMOVE_ORIGINAL_COLUMN = QCheckBox("Remove original column")
 				self.check_REMOVE_ORIGINAL_COLUMN.setChecked(self.REMOVE_ORIGINAL_COLUMN)
 				def check_REMOVE_ORIGINAL_COLUMN_callback(element):
 					self.REMOVE_ORIGINAL_COLUMN = self.check_REMOVE_ORIGINAL_COLUMN.isChecked()
-					self.populateData()
-				# self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populateData)
+					self.populate_data()
+				# self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(self.populate_data)
 				self.check_REMOVE_ORIGINAL_COLUMN.stateChanged.connect(check_REMOVE_ORIGINAL_COLUMN_callback)
-				self.flatten_table_tree.add_element(self.check_REMOVE_ORIGINAL_COLUMN)
+				self.flattenTableTreeMenu.add_element(self.check_REMOVE_ORIGINAL_COLUMN)
 
 				# self.flatten_table_tree = self.build_elements_tree(QCheckBox("Flatten table"), flatten_buttons)
-				self.flattenOptionsControlBox.layout().addWidget(self.flatten_table_tree)
+				self.flattenOptionsControlBox.layout().addWidget(self.flattenTableTreeMenu)
 
 
 				def dummy_request_function(offset,limit):
@@ -522,7 +530,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 
 				self.refresh_data_button = gui.button(
 					self.controlBox, self, "Reload existing data",
-					callback=self.populateData)
+					callback=self.populate_data)
 				self.refresh_data_button.hide()
 
 				self.controlBox.resize(250, 250)
@@ -566,7 +574,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 					self.ETSY_API_RESPONSE = json.loads(
 						open(os.path.expanduser("~/debug_response.json"), encoding="utf8").read(), strict=False)
 					self.change_http_status_label("-100 DEBUGGING", color="orange")
-					self.populateData()
+					self.populate_data()
 
 				self.debugFunc = debugFunc
 
@@ -600,6 +608,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 				self.tableWidget.resizeRowsToContents()
 				self.tableWidget.horizontalHeader().setStretchLastSection(True)
 				self.tableWidget.verticalHeader().setStretchLastSection(True)
+				self.tableWidget.setEditTriggers(QTableView.NoEditTriggers)
 
 				self.tableWidget.setSizePolicy(3, 3)
 
@@ -702,10 +711,13 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		self.change_app_status_label("API successfully set")
 		self.setTokenButton.setText("Re-authenticate")
 		self.sendRequestButton.setEnabled(True)
-		self.httpTreeMenu.setEnabled(True)
 		self.sendRequestButton.setText("Send request")
 
-		self.sendRequestButton.clicked.connect(self.dispatch_request)
+		self.enable_qgroupbox_and_color_title(self.httpVerbsTreeMenu)
+		self.enable_qgroupbox_and_color_title(self.paginateTreeMenu)
+
+		self.sendRequestButton.clicked.connect(lambda:\
+			self.loop.run_until_complete(self.send_request()))
 
 		self.flattenOptionsControlBox.setEnabled(False)
 
@@ -715,7 +727,7 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 			api_token=self.ETSY_API_TOKEN,
 			auto_close_browser=self.ETSY_AUTO_CLOSE_BROWSER,
 			auto_refresh_token=self.ETSY_AUTO_REFRESH_TOKEN,
-			auto_start_auth=self.ETSY_AUTO_START_AUTH,
+			auto_start_auth=True,
 			verbose=self.ETSY_VERBOSE,
 			host=self.ETSY_HOST,
 			port=self.ETSY_PORT
@@ -725,6 +737,9 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 		self.enable_qgroupbox_and_color_title(self.optional_parameters_box)
 
 		self.searchBox.setEnabled(True)
+
+	def exit(self):
+		print("Called exit override")
 
 	def resizeEvent(self, event):
 		w = self.tableTab.width()
@@ -738,6 +753,8 @@ class OrangeEtsyApiInterface(OWWidget,SetupHelper, WidgetsHelper, RequestHelper)
 	@staticmethod
 	def sizeHint():
 		return QSize(800, 500)
+
+
 
 
 if __name__ == "__main__":

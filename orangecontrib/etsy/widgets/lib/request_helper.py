@@ -1,8 +1,13 @@
+import asyncio
 import traceback
 from asyncio import Lock
 from pprint import pprint
 
+from PyQt5.QtWidgets import QMessageBox
 from etsyv3.etsy_api import BadRequest, Unauthorised, NotFound, InternalError, Forbidden, Conflict
+from orangewidget.widget import Msg
+
+
 # from rich import traceback
 
 
@@ -38,31 +43,65 @@ class RequestHelper:
 					combined[key] = dictionary[key]
 		return combined
 
-	def dispatch_request(self):
-		self.send_request()
+	async def combine_results(self, response_offset_dict):
+		combined_results = []
 
-	def send_request(self):
+		for key in sorted(response_offset_dict.keys()):
+			offset, limit = key
+			response = response_offset_dict[key]
+			combined_results.extend(response['results'])
+
+		return combined_results
+
+	async def combine_responses(self, response_offset_dict):
+		combined_response = {}
+
+		for key in response_offset_dict:
+			offset, limit = key
+			response = response_offset_dict[key]
+
+			# Iterate over the key-value pairs in the response dictionary
+			for k, v in response.items():
+				if k not in combined_response:
+					# Add the key-value pair to the combined_response dictionary if the key does not already exist
+					combined_response[k] = v
+				else:
+					# If the key already exists in the combined_response dictionary, merge the value with the existing value
+					existing_value = combined_response[k]
+					if isinstance(existing_value, list):
+						combined_response[k].extend(v)
+					elif isinstance(existing_value, dict):
+						combined_response[k].update(v)
+
+		return combined_response
+
+
+
+	async def send_request(self):
 		# add an asyncio Lock
 		self.request_lock = Lock()
 		self.change_app_status_label("Sending request")
 		try:
+			async with asyncio.gather(*[
+				self.etsy_client_send_request(
+					*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
+					**self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
+					offset=offset,
+					limit=limit
+				) for offset, limit in self.etsy_request_offsets_and_limits
+			]) as responses:
+				response_offset_dict = {}
+				for (offset, limit), response in zip(self.etsy_request_offsets_and_limits, responses):
+					key = (offset, limit)
+					response_offset_dict[key] = response
 
-			# Sequence requests
+				combined_results = await self.combine_results(response_offset_dict)
+				combined_response = await self.combine_responses(response_offset_dict)
 
-			# if self.ETSY_API_CLIENT_SEND_REQUEST_ARGS
+			# print(combined_results)
+			# print(combined_response)
 
-			combined_response_res = {}
-			response_offset_dict = {}
-			for offset, limit in self.etsy_request_offsets_and_limits:
-				new_res = self.etsy_client_send_request(*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
-				                                    **self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
-				                                    offset=offset, limit=limit)
-				combined_response_res = self.combine_dicts(new_res, combined_response_res) #, ints_whitelist=["count"], list_whitelist=["results"])
-				response_offset_dict[offset] = new_res
-
-			pprint(response_offset_dict)
-
-			self.ETSY_API_RESPONSE = combined_response_res
+			self.ETSY_API_RESPONSE = combined_response
 			self.change_http_status_label("200 OK", color="green")
 			self.populateData()
 		except BadRequest as e:
@@ -78,8 +117,23 @@ class RequestHelper:
 		except InternalError as e:
 			self.change_http_status_label("500 Internal server error", color="red")
 		except Exception as e:
-			self.change_http_status_label("Unknown error while sending request: ", color="red")
-			raise e
+			# Re-raising it does not seem to work
+			self.change_http_status_label("Unknown error while sending request: " + e.args[0], color="red")
+			error_msg = f"Unknown error while sending request: {e.__class__.__name__}: {e.args[0]}"
+			self.change_app_status_label(error_msg, "red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
+			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
+
+	# except Exception as e:
+		# 	self.change_http_status_label("Unknown error while sending request: " +  e.args[0] , color="red")
+		#
+		# 	error_msg = f"Error: {exctype}: {value}"
+		# 	self.change_app_status_label(error_msg, "red")
+		# 	self.transform_err = Msg(error_msg)
+		# 	self.error(error_msg)
+		# 	QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
+		# 	# raise
 
 
 	# def combine_dicts(self, *dicts):
