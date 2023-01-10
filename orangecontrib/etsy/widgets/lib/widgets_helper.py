@@ -216,6 +216,10 @@ class SetupHelper:
             def elementCallback(data, widget=None):
                 nonlocal self
                 widget_name = widget.objectName()
+                print(widget_name)
+                print(self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
+                if widget_name == "limit" or widget_name == "offset":
+                    pass # TODO: Check if this kwarg does not already exist
                 self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
 
             element, label = self.build_pyqt_element_from_parameter(arg_name, elementCallback)

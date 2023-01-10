@@ -22,6 +22,8 @@ class RequestHelper:
 				offset, limit = _key
 				d = _value
 				for key, value in d.items():
+					if key == "results":
+						print("Num results: ", len(value))
 					# this could be done with checking for __add__ imo, but that doesnt seem to work
 					if isinstance(value, (int, float, list, tuple)):
 						empty_default_object = __builtins__[type(value).__name__]()
@@ -31,12 +33,21 @@ class RequestHelper:
 						merged[key] = value
 		return merged
 	async def send_request(self):
-		print(self.etsy_request_offsets_and_limit)
 		try:
+			print(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
 			for offset, limit in self.etsy_request_offsets_and_limits:
+			# For some reason the offset and limit are swapped around
+			#  (which is not the way it's comming out of the function)
+			#  really strange bug, and potentially very dangerous.
+			# for limit, offset in self.etsy_request_offsets_and_limits:
 				async def wrapper(offset, limit, *args, **kwargs):
-					return {(offset, limit) : self.etsy_client_send_request(*args, **kwargs)}
+					return {
+						(offset, limit) :
+								self.etsy_client_send_request(limit=limit, offset=offset,
+								                              *args, **kwargs)
+					}
+				print("Limit, offset: ", limit, offset)
 				task = asyncio.create_task(
 					wrapper(
 						limit=limit,
@@ -48,7 +59,8 @@ class RequestHelper:
 				tasks.append(task)
 			results = await asyncio.gather(*tasks)
 			sorted_dicts = sorted(results, key=lambda x: sum(list(x.keys())[0]))
-			merged_dicts = self.merge_dicts(*sorted_dicts)
+			print([d.keys() for d in sorted_dicts])
+			merged_dicts = self.merge_dicts(sorted_dicts)
 			self.ETSY_API_RESPONSE = merged_dicts
 			self.change_http_status_label("200 OK", color="green")
 			self.populate_data()
@@ -71,13 +83,10 @@ class RequestHelper:
 			self.change_app_status_label(error_msg[:120]+"...", "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
-
-
-
+			QMessageBox.critical(self, "Error", error_msg[:1500]+"...", QMessageBox.Ok)
 			print(self.get_traceback())
 
 
-			QMessageBox.critical(self, "Error", error_msg[:1500]+"...", QMessageBox.Ok)
 
 
 
@@ -104,17 +113,5 @@ class RequestHelper:
 
 	# For some stupid reason asyncio functins dont seem to print the stacktrace to the console.
 	# This function is a workaround for that.
-	def get_traceback(self):
-		import traceback, sys
-		exc = sys.exc_info()[0]
-		if exc is not None:
-			f = sys.exc_info()[-1].tb_frame.f_back
-			stack = traceback.extract_stack(f)
-		else:
-			stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
-		trc = 'Traceback (most recent call last):\n'
-		stackstr = trc + ''.join(traceback.format_list(stack))
-		if exc is not None:
-			stackstr += '  ' + traceback.format_exc().lstrip(trc)
-		return stackstr
+
 

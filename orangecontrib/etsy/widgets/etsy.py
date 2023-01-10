@@ -7,6 +7,7 @@ import sys
 import textwrap
 import traceback
 from collections import ChainMap
+from datetime import datetime
 from functools import partial
 
 import pandas as pd
@@ -115,9 +116,10 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	df_flattened = None
 	df_json = None
 
-	paginateLimitValue = Setting(100)
+	paginateLimitValue = 100 #Setting(100)
 
-	etsy_request_offsets_and_limits = [(0,100)]
+	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
+	print(etsy_request_offsets_and_limits)
 
 	request_lock = None
 
@@ -140,24 +142,38 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			host=self.ETSY_HOST,
 			port=self.ETSY_PORT
 		)
-		asyncio.set_event_loop(qasync.QEventLoop(self))
+		# asyncio.set_event_loop(qasync.QEventLoop(self))
+		self.loop = qasync.QEventLoop(self)
 		WidgetsHelper.__init__(self)
 		RequestHelper.__init__(self)
 		self.setup_ui()
 		self.setup_custom_exception_hook()
+		# self.loop.run_forever()
 
-
-
+	def get_traceback(self):
+		exc = sys.exc_info()[0]
+		if exc is not None:
+			f = sys.exc_info()[-1].tb_frame.f_back
+			stack = traceback.extract_stack(f)
+		else:
+			stack = traceback.extract_stack()[:-1]  # last one would be full_stack()
+		trc = "Traceback (most recent call last):\n"
+		stackstr = trc + "".join(traceback.format_list(stack))
+		if exc is not None:
+			stackstr += "  " + traceback.format_exc().lstrip(trc)
+		return stackstr
 
 	def setup_custom_exception_hook(self):
 		def exception_hook(exctype, value, traceback):
+			exception_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 			error_msg = f"Error: {exctype}: {value}"
+			with open(os.path.expanduser("~/etsy_orange_error_log.txt"), "a+", encoding="utf8") as f:
+				f.write(f"\n[{exception_time}] Exception occurred\n" + self.get_traceback())
 			self.change_app_status_label(error_msg, "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
 			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
 			sys.__excepthook__(exctype, value, traceback)
-
 		sys.excepthook = exception_hook
 
 	def populate_data(self):
@@ -464,8 +480,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					return offsets_and_limits
 
 				def on_slider_valueChanged(value):
-					self.etsy_request_offsets_and_limits = calculate_pagination_offset_and_limits(
-									_range=value, limit=self.paginateLimitValue )
+					self.etsy_request_offsets_and_limits = \
+						calculate_pagination_offset_and_limits(_range=value, limit=self.paginateLimitValue )
 
 				self.paginateSlider.valueChanged.connect(on_slider_valueChanged)
 
@@ -712,10 +728,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.enable_qgroupbox_and_color_title(self.httpVerbsTreeMenu)
 		self.enable_qgroupbox_and_color_title(self.paginateTreeMenu)
 
-		self.sendRequestButton.clicked.connect(lambda:\
-			asyncio.get_event_loop().run_until_complete(self.send_request()))
+		# self.sendRequestButton.clicked.connect(lambda: \
+		# 	asyncio.get_event_loop()
+		# 	.run_until_complete(self.send_request()))
 
-		self.flattenOptionsControlBox.setEnabled(False)
+		self.sendRequestButton.clicked.connect(lambda:
+                           asyncio.create_task(
+                           self.send_request()
+                           ))
 
 		# self.ETSY_API_CLIENT = EtsyOAuth2Client(
 		# Re-initialize the client with the new token
@@ -736,6 +756,10 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	def exit(self):
 		print("Called exit override")
+
+	def processEvents(self):
+		QtWidgets.QApplication.processEvents()
+		print("Called processEvents override")
 
 	def resizeEvent(self, event):
 		w = self.tableTab.width()
