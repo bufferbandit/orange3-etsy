@@ -240,8 +240,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				if method_name_match:
 					method_name = method_name_match.group(2)
 					self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
-					self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[
-						method_name]
+					self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[method_name]
 
 					self.etsy_client_send_request = self.CURR_SELECTED_METHOD
 
@@ -249,6 +248,11 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					self.clear_element(self.required_parameters_box)
 					self.clear_element(self.optional_parameters_box)
 					self.setup_arg_elements()
+
+					# clear the global args and kwargs
+					self.ETSY_API_CLIENT_SEND_REQUEST_ARGS = []
+					self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS = {}
+
 
 			self.searchBox.currentTextChanged.connect(searchBoxCallback)
 			self.searchBox.show()
