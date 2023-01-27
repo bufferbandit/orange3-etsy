@@ -24,7 +24,8 @@ class RequestHelper:
 				d = _value
 				for key, value in d.items():
 					if key == "results":
-						print("Num results: ", len(value))
+						# print("Num results: ", len(value))
+						pass
 					# this could be done with checking for __add__ imo, but that doesnt seem to work
 					if isinstance(value, (int, float, list, tuple)):
 						empty_default_object = __builtins__[type(value).__name__]()
@@ -67,17 +68,41 @@ class RequestHelper:
 			self.change_http_status_label("200 OK", color="green")
 			self.populate_data()
 		except BadRequest as e:
-			self.change_http_status_label("400 Bad request", color="red")
+			error_msg = "400 Bad request. "
+			QMessageBox.critical(self, "400", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except Unauthorised as e:
-			self.change_http_status_label("401 Unauthorised", color="red")
+			error_msg = "401 Unauthorised. "
+			QMessageBox.critical(self, "401", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except Forbidden as e:
-			self.change_http_status_label("403 Forbidden", color="red")
+			error_msg = "403 Forbidden. "
+			QMessageBox.critical(self, "403", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except Conflict as e:
-			self.change_http_status_label("409 Conflict", color="red")
+			error_msg = "409 Conflict. "
+			QMessageBox.critical(self, "409", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except NotFound as e:
-			self.change_http_status_label("404 Not found", color="red")
+			error_msg = "404 Not found. "
+			QMessageBox.critical(self, "404", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except InternalError as e:
-			self.change_http_status_label("500 Internal server error", color="red")
+			error_msg = "500 Internal server error. "
+			QMessageBox.critical(self, "500", error_msg, QMessageBox.Ok)
+			self.change_http_status_label(error_msg + str(e), color="red")
+			self.transform_err = Msg(error_msg)
+			self.error(error_msg)
 		except Exception as e:
 			# Re-raising it does not seem to work
 			self.change_http_status_label("Unknown error while sending request: " + e.args[0], color="red")
