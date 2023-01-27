@@ -102,6 +102,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	ETSY_API_RESPONSE_DF = None
 	ETSY_API_RESPONSE_DF_MODEL = None
 
+	ETSSY_API_REFERENCE_FILE_PATH = os.path.join(
+		os.path.dirname(__file__), "./", "data", "api_reference.json")
+
 	DISPLAY_FLATTENED_TABLE = Setting(True)
 	REMOVE_ORIGINAL_COLUMN = Setting(False)
 
@@ -131,6 +134,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 
 
+
+
 	def __init__(self):
 		super().__init__()
 		self.ETSY_API_CLIENT = EtsyOAuth2Client(
@@ -140,7 +145,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			auto_start_auth=self.ETSY_AUTO_START_AUTH,
 			verbose=self.ETSY_VERBOSE,
 			host=self.ETSY_HOST,
-			port=self.ETSY_PORT
+			port=self.ETSY_PORT,
+			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
+
 		)
 		# asyncio.set_event_loop(qasync.QEventLoop(self))
 		self.loop = qasync.QEventLoop(self)
@@ -750,7 +757,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			auto_start_auth=True,
 			verbose=self.ETSY_VERBOSE,
 			host=self.ETSY_HOST,
-			port=self.ETSY_PORT
+			port=self.ETSY_PORT,
+			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
 		)
 
 		self.enable_qgroupbox_and_color_title(self.required_parameters_box)

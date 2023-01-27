@@ -6,35 +6,37 @@ import webbrowser
 import threading
 import requests
 import datetime
+import inspect
 import logging
 import hashlib
 import urllib
 import pprint
 import base64
 import random
+import typing
 import signal
 import string
+import types
 import sched
 import time
 import json
 import os
 import re
 
-AUTO_CLOSE_BROWSER = True
-AUTO_REFRESH_TOKEN = True
-AUTO_START_AUTH = True
-VERBOSE = False
-HOST = "localhost"
-PORT = 5000
 
-API_TOKEN = "ADD YOUR API TOKEN"
+
 
 
 class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 	def __init__(self, api_token, host="0.0.0.0", port=5000,
 	             auto_close_browser=True, auto_refresh_token=False,
 	             verbose=True, auto_start_auth=True, scopes=None,
-	             access_token=None, refresh_token=None, expiry=None):
+	             access_token=None, refresh_token=None, expiry=None,
+	             reference_file_path="./api_reference.json"):
+
+		self.api_reference_json_file = open(
+			reference_file_path, encoding="utf-8")
+		self.api_reference_json = json.load(self.api_reference_json_file)
 
 		# Construct and initialize the variables needed for the OAuth flow
 		if scopes is None:
@@ -97,26 +99,94 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 	# 		expiry=self.expiry,
 	# 		refresh_save=None)
 
-	def get_api_routes(self):
-		if self.verbose: print("Getting API routes")
-		import inspect, typing
-		for mtd in inspect.getmembers(self, predicate=inspect.ismethod):
-			method_name, method = mtd
-			# If function contains URI it's probably an API route
-			if {"ETSY_API_BASEURL", "_issue_request"}\
-					.issubset(set(method.__code__.co_names)) and not method_name in ["refresh","_issue_request"]:
-				sc = inspect.getsource(method)
-				stripped = sc.replace("\n","").strip()
-				if uri := re.compile(r"(uri\s=\s).\"(.*?)\"").findall(stripped):
-					uri_val = uri[0][1].replace(
-						"{ETSY_API_BASEURL}", etsyv3.etsy_api.ETSY_API_BASEURL[:-1])
-					# Regex that checks what word is behind Method.
-					verb_pattern = re.compile(r"(Method\.)(\w+)").findall(stripped)
-					try:verb = verb_pattern[0][1] if verb_pattern else "GET"
-					except IndexError:verb = "GET"
-					yield method_name, uri_val, method, list(inspect.signature(method).parameters), verb
+	def reference_opperation_to_function(self, method_obj, func="None #", prefix="__from_api_reference_", **kwargs):
+		if isinstance(func, (types.FunctionType, types.MethodType)): func = func.__name__
+		# function string
+		function_str = "def {prefix}{operationId}({args_str}{self}):return {func}(**locals())"
+		# generate the function arguments signature
+		type_translation = {
+			"integer": "int",
+			"float": "float",
+			"boolean": "bool",
+			"string": "str",
+			"array": "list",
+			"epoch": "datetime.datetime",
+		}
+		# convert all parameters to a list
+		arguments_list = [parameter["name"] + ":" + type_translation.get(parameter["schema"]["type"], "typing.Any") +
+		                  ("=None" if not parameter["required"] else "") for parameter in
+		                  method_obj.get("parameters", [])]
+		# add function kwargs to the arguments list as well
+		arguments_list.extend(
+			[f"{key}='{value}'" if isinstance(value, str) else f"{key}={value}"
+			 for key, value in kwargs.items()])
 
-	# Disable builtin refresh token method
+		# convert the list to a string separated by commas
+		arguments_string = arguments_string if (arguments_string := ",".join(arguments_list)) != "," else ""
+		# eval and fill in the blanks
+		exec_str = function_str.format(
+			operationId=method_obj["operationId"],
+			args_str=arguments_string,
+			prefix=prefix,
+			func=func,
+			self=",self=self" if locals().get("self", None) else ""
+		)
+		exec(exec_str)
+		function_name = prefix + method_obj["operationId"]
+		function = locals()[function_name]
+		return function, function_name
+
+	def get_api_routes(self):
+		for path, path_obj in self.api_reference_json["paths"].items():
+			for method, method_obj in path_obj.items():
+				function, function_name = self.reference_opperation_to_function(
+					prefix="", method_obj=method_obj, func="self.make_request", path=path, method=method)
+				yield function_name, path, function, list(
+					set(inspect.signature(function).parameters) - set(["path", "method", "self"])), method.upper()
+
+	def make_request(*args, **kwargs):
+		path = kwargs.get("path", None)
+		method = kwargs.get("method", None)
+
+		if path: del kwargs["path"]
+		if method: del kwargs["method"]
+
+		if (self := kwargs.get("self", None)):
+			del kwargs["self"]
+
+		method_obj = self.api_reference_json["paths"][path][method]
+		query_kwargs = {}
+		request_payload = None
+		# uri = etsyv3.etsy_api.ETSY_API_BASEURL.rstrip("/") + path
+		uri = etsyv3.etsy_api.ETSY_API_BASEURL.rsplit("/",3)[0] + path
+		# Loop through the paramters from the object
+		for parameter in method_obj.get("parameters", []):
+			parameter_name = parameter["name"]
+			# See if the parameter is in the provided parameters
+			kwarg_val = kwargs.get(parameter_name, None)
+			# If so see where it belongs
+			if kwarg_val:
+				if parameter["in"] == "path":
+					uri = uri.replace("{" + parameter_name + "}", str(kwarg_val))
+				elif parameter["in"] == "query" and str(kwarg_val) != "None":
+					query_kwargs[parameter_name] = kwarg_val
+				elif parameter["in"] == "header":
+					# TODO: process the header parameters
+					pass
+			# Otherwise check if they are required
+			elif parameter["schema"].get("required", None):
+				raise Exception(f"{parameter['name']} is required but not provided")
+
+		if method == "post" or method == "put":
+			request_payload = {}
+			for request_body in method_obj.get("requestBody", []):
+				# TODO: process the request body
+				pass
+
+		res = self._issue_request(uri, method=getattr(etsyv3.etsy_api.Method, method.upper()), request_payload=None, **query_kwargs)
+		return res
+
+	# Disable builtin refresh token method by overriding it
 	def refresh(self):pass
 
 	@classmethod
@@ -126,7 +196,6 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 			.replace("+", "-") \
 			.replace("/", "_") \
 			.replace("=", "")
-
 
 	@property
 	def auto_refresh_token(self):
@@ -153,12 +222,13 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		if self.verbose: print("Opening browser to authenticate url: " + auth_url)
 		webbrowser.open(auth_url)
 
-
 	def receive_oauth_callback(self):
 		parent_context = self
 		tokens = {}
+
 		class OAuthServerHandler(http.server.BaseHTTPRequestHandler):
 			def log_message(self, format, *args): pass
+
 			def do_GET(self):
 				nonlocal tokens
 				self.send_response(200)
@@ -192,17 +262,19 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 					f"</html>", "utf-8"))
 				self.server.server_close()
 				return
-		try:http.server.HTTPServer((self.host, self.port), OAuthServerHandler).serve_forever()
-		except OSError:pass # For some strange reason something still tries to write to the socket after closing server
-		return tokens
 
+		try:
+			http.server.HTTPServer((self.host, self.port), OAuthServerHandler).serve_forever()
+		except OSError:
+			pass  # For some strange reason something still tries to write to the socket after closing server
+		return tokens
 
 	# Add token as an alias for access_token (for parrent class)
 	@property
 	def token(self):
 		return self.access_token
 
-	@token.setter # needed to use a getter
+	@token.setter  # needed to use a getter
 	def token(self, value):
 		# self.access_token = value
 		pass
@@ -215,7 +287,7 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		self.expires_in = tokens["expires_in"]
 		self.expiry = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
 
-		if self.verbose:print("Expiry: " + str(self.expiry))
+		if self.verbose: print("Expiry: " + str(self.expiry))
 
 	def stop_auto_refreshing_token(self):
 		self.auto_refresh_token = False
@@ -229,7 +301,7 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 	def get_refresh_token(self):
 		# These can't make use of the requests.session object because it's not initialized yet
 		res = requests.post("https://api.etsy.com/v3/public/oauth/token",
-		    headers={"Content-Type": "application/json"}, json={
+		                    headers={"Content-Type": "application/json"}, json={
 				"grant_type": "refresh_token",
 				"client_id": self.api_token,
 				"refresh_token": self.refresh_token
@@ -241,21 +313,36 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		self.expires_in = tokens["expires_in"]
 		self.expiry = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
 
-
 		if self.verbose: print("Succesfully refreshed token", self.access_token, self.refresh_token, self.expires_in)
 		if self.auto_refresh_token:
 			self.start_auto_refreshing_token()
 
 
+
 if __name__ == "__main__":
+	AUTO_CLOSE_BROWSER = True
+	AUTO_REFRESH_TOKEN = True
+	AUTO_START_AUTH = True
+	VERBOSE = True
+	HOST = "localhost"
+	PORT = 5000
+	API_TOKEN = input("ADD YOUR API TOKEN ")
 	client = EtsyOAuth2Client(
 		api_token=API_TOKEN, host=HOST, port=PORT,
 		auto_close_browser=AUTO_CLOSE_BROWSER,
 		auto_refresh_token=AUTO_REFRESH_TOKEN,
-		verbose=VERBOSE, auto_start_auth=AUTO_START_AUTH)
+		verbose=VERBOSE, auto_start_auth=AUTO_START_AUTH,
+		reference_file_path=os.path.join(
+			os.path.dirname(__file__), "..", "data", "api_reference.json"))
 	print(client.ping())
 	client.stop_auto_refreshing_token()
 
 	routes = list(client.get_api_routes())
+	client.get_api_routes()
 	pprint.pprint(routes)
 
+	func = __from_api_reference_getShop
+
+	print(inspect.signature(func))
+	res = func(shop_id=None)
+	print("Response: ", res)
