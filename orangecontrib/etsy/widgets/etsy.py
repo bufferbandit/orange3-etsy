@@ -172,7 +172,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	def setup_custom_exception_hook(self):
 		def exception_hook(exctype, value, traceback):
-			exception_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+			exception_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 			error_msg = f"Error: {exctype}: {value}"
 			with open(os.path.expanduser("~/etsy_orange_error_log.txt"), "a+", encoding="utf8") as f:
 				f.write(f"\n[{exception_time}] Exception occurred\n" + self.get_traceback())

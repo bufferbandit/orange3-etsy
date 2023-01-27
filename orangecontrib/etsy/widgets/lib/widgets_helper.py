@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from collections import OrderedDict
 from functools import partial
 
@@ -140,12 +141,14 @@ class WidgetsHelper:
             element = QSpinBox()
             element.setReadOnly(False)
 
-            if "minimum" in schema:
-                element.setMinimum(schema["minimum"])
-            if "maximum" in schema:
-                element.setMaximum(schema["maximum"])
-            if "default" in schema:
-                element.setValue(schema["default"])
+            minimum = schema["minimum"] if "minimum" in schema else -2147483648 #-sys.maxsize - 1
+            maximum = schema["maximum"] if "maximum" in schema else  2147483647 #sys.maxsize -1
+
+            element.setMinimum(minimum)
+            element.setMaximum(maximum)
+
+            default = schema.get("default", None)
+            if default: element.setValue(default)
 
             element.textChanged.connect(partial(callback, widget=element))
 

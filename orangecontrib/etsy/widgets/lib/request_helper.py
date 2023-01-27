@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import traceback
 from pprint import pprint
 
@@ -34,7 +35,7 @@ class RequestHelper:
 		return merged
 	async def send_request(self):
 		try:
-			print(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
+			# print(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
 			for offset, limit in self.etsy_request_offsets_and_limits:
 			# For some reason the offset and limit are swapped around
@@ -42,12 +43,13 @@ class RequestHelper:
 			#  really strange bug, and potentially very dangerous.
 			# for limit, offset in self.etsy_request_offsets_and_limits:
 				async def wrapper(offset, limit, *args, **kwargs):
+					paramters = inspect.signature(self.etsy_client_send_request).parameters
+					if "limit" in paramters:kwargs["limit"] = limit
+					if "offset" in paramters:kwargs["offset"] = offset
 					return {
 						(offset, limit) :
-								self.etsy_client_send_request(limit=limit, offset=offset,
-								                              *args, **kwargs)
+								self.etsy_client_send_request(*args, **kwargs)
 					}
-				print("Limit, offset: ", limit, offset)
 				task = asyncio.create_task(
 					wrapper(
 						limit=limit,
