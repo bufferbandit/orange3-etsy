@@ -25,6 +25,53 @@ import re
 
 
 
+from shared_memory_dict.serializers import PickleSerializer
+from shared_memory_dict import SharedMemoryDict
+
+
+class SharedMemDict(SharedMemoryDict):
+	# Check if object is the oldest object
+	#  This might become useful when maybe in the future a model will be added (todo?)
+	#  that just replicates the eldest and does not allow attrs to be set on the children
+	@property
+	def is_eldest(self):
+		# print(self.get("registered_client_ids", []))
+		return self.id == min(self.get("registered_client_ids", []))
+
+	attr_blacklist = {"_serializer", "_memory_block", "id", "name"}
+
+	def __init__(self, size=1024, prefix="SyncedObject__", serializer=PickleSerializer(), *args, **kwargs):
+		# Set the name of the "channel" to the class name
+		self.name = prefix + self.__class__.__name__
+		super().__init__(name=self.name, size=size, serializer=serializer, *args, **kwargs)
+		registered_client_ids = self.get("registered_client_ids", [])
+		# Create an id that is current max id + 1
+		self.id = 0 if not registered_client_ids else (max(registered_client_ids) + 1)
+		# "register" the id (by just adding it to the list)
+		registered_client_ids.append(self.id)
+		super().__setitem__("registered_client_ids", registered_client_ids)
+
+
+	# When calling "del" on the object, remove the id from the ids
+	def __del__(self):
+		registered_client_ids = self["registered_client_ids"]
+		del self["registered_client_ids"]
+
+		registered_client_ids.remove(self.id)
+		self["registered_client_ids"] = registered_client_ids
+
+		self.shm.close()
+		self.shm.unlink()
+
+		super().__del__()
+
+	def item_set_trigger(self):
+		pass
+
+
+
+
+
 
 
 class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
@@ -33,6 +80,8 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 	             verbose=True, auto_start_auth=True, scopes=None,
 	             access_token=None, refresh_token=None, expiry=None,
 	             reference_file_path="./api_reference.json"):
+
+		self.shared_mem_dict = SharedMemDict()
 
 		self.api_reference_json_file = open(
 			reference_file_path, encoding="utf-8")
@@ -46,7 +95,11 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 			          "profile_w", "recommend_r", "recommend_w", "shops_r",
 			          "shops_w", "transactions_r", "transactions_w"]
 		self.auto_close_browser = auto_close_browser
-		self.api_token = api_token
+		if not (existing_token := self.shared_mem_dict.get("api_token")):
+			self.api_token = self.shared_mem_dict["access_token"] = api_token
+		else:
+			self.api_token = existing_token
+
 		self.host = host
 		self.port = port
 		self.scopes = scopes
@@ -81,23 +134,12 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 
 		# Initialize base class variables
 		super().__init__(
-			keystring=api_token,
+			keystring=self.api_token,
 			token=self.access_token,
 			refresh_token=self.refresh_token,
 			expiry=self.expiry,
 			refresh_save=None)
 
-	# def __late__init(self, access_token, refresh_token, expiry):
-	# 	self.access_token = access_token
-	# 	self.refresh_token = refresh_token
-	# 	self.expiry = expiry
-	# 	# Initialize base class variables
-	# 	super().__init__(
-	# 		keystring=self.api_token,
-	# 		token=self.access_token,
-	# 		refresh_token=self.refresh_token,
-	# 		expiry=self.expiry,
-	# 		refresh_save=None)
 
 	def reference_opperation_to_function(self, method_obj, func="None #", prefix="__from_api_reference_", **kwargs):
 		if isinstance(func, (types.FunctionType, types.MethodType)): func = func.__name__
@@ -280,14 +322,21 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		pass
 
 	def get_access_token(self):
-		self.open_oauth_request()
-		tokens = self.receive_oauth_callback()
-		self.access_token = tokens["access_token"]
-		self.refresh_token = tokens["refresh_token"]
-		self.expires_in = tokens["expires_in"]
-		self.expiry = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
+		if self.shared_mem_dict.is_eldest:
+			self.open_oauth_request()
+			tokens = self.receive_oauth_callback()
+			self.access_token = self.shared_mem_dict["access_token"] = tokens["access_token"]
+			self.refresh_token = self.shared_mem_dict["refresh_token"] = tokens["refresh_token"]
+			self.expires_in = self.shared_mem_dict["expires_in"] = tokens["expires_in"]
+			self.expiry = self.shared_mem_dict["expiry"] = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
 
-		if self.verbose: print("Expiry: " + str(self.expiry))
+			if self.verbose: print("Expiry: " + str(self.expiry))
+		else:
+			self.access_token = self.shared_mem_dict["access_token"]
+			self.refresh_token = self.shared_mem_dict["refresh_token"]
+			self.expires_in = self.shared_mem_dict["expires_in"]
+			self.expiry = self.shared_mem_dict["expiry"]
+
 
 	def stop_auto_refreshing_token(self):
 		self.auto_refresh_token = False
@@ -299,23 +348,29 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		if self.verbose: print("New timer started with interval", self.refresh_token_timer.interval)
 
 	def get_refresh_token(self):
-		# These can't make use of the requests.session object because it's not initialized yet
-		res = requests.post("https://api.etsy.com/v3/public/oauth/token",
-		                    headers={"Content-Type": "application/json"}, json={
-				"grant_type": "refresh_token",
-				"client_id": self.api_token,
-				"refresh_token": self.refresh_token
-			})
-		tokens = res.json()
+		if self.shared_mem_dict.is_eldest:
+			# These can't make use of the requests.session object because it's not initialized yet
+			res = requests.post("https://api.etsy.com/v3/public/oauth/token",
+			                    headers={"Content-Type": "application/json"}, json={
+					"grant_type": "refresh_token",
+					"client_id": self.api_token,
+					"refresh_token": self.refresh_token
+				})
+			tokens = res.json()
 
-		self.access_token = tokens["access_token"]
-		self.refresh_token = tokens["refresh_token"]
-		self.expires_in = tokens["expires_in"]
-		self.expiry = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
+			self.access_token = self.shared_mem_dict["access_token"] = tokens["access_token"]
+			self.refresh_token = self.shared_mem_dict["refresh_token"] = tokens["refresh_token"]
+			self.expires_in = self.shared_mem_dict["expires_in"] = tokens["expires_in"]
+			self.expiry = self.shared_mem_dict["expiry"] = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
 
-		if self.verbose: print("Succesfully refreshed token", self.access_token, self.refresh_token, self.expires_in)
-		if self.auto_refresh_token:
-			self.start_auto_refreshing_token()
+			if self.verbose: print("Succesfully refreshed token", self.access_token, self.refresh_token, self.expires_in)
+			if self.auto_refresh_token:
+				self.start_auto_refreshing_token()
+		else:
+			self.access_token = self.shared_mem_dict["access_token"]
+			self.refresh_token = self.shared_mem_dict["refresh_token"]
+			self.expires_in = self.shared_mem_dict["expires_in"]
+			self.expiry = self.shared_mem_dict["expiry"]
 
 
 

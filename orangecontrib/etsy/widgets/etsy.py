@@ -70,14 +70,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	search_items = []
 
 	#
-	ETSY_API_TOKEN = Setting(None)
-	ETSY_AUTO_CLOSE_BROWSER = Setting(True)
-	ETSY_AUTO_REFRESH_TOKEN = Setting(True)
-	ETSY_AUTO_START_AUTH = Setting(False)
-	ETSY_VERBOSE = Setting(False)
-	ETSY_HOST = Setting("localhost")
-	ETSY_PORT = Setting(5000)
-	ETSY_API_CLIENT = Setting(None)
+	ETSY_API_TOKEN = None
+	ETSY_AUTO_CLOSE_BROWSER = True
+	ETSY_AUTO_REFRESH_TOKEN = True
+	ETSY_AUTO_START_AUTH = False
+	ETSY_VERBOSE = False
+	ETSY_HOST = "localhost"
+	ETSY_PORT = 5000
+	ETSY_API_CLIENT = None
 
 	def default(self, *args, **kwargs):
 		message = "This is the default function. Please select a function from the dropdown."
@@ -92,9 +92,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	ETSY_ROUTES = []
 
-	SELECT_RESULTS_ONLY_OUTPUT = Setting(True)
-	FLATTEN_TABLE = Setting(False)
-	SEQUENCE_REQUESTS = Setting(False)
+	SELECT_RESULTS_ONLY_OUTPUT = True
+	FLATTEN_TABLE = False
+	SEQUENCE_REQUESTS = False
 
 
 	ETSY_API_RESPONSE = {}
@@ -105,8 +105,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	ETSSY_API_REFERENCE_FILE_PATH = os.path.join(
 		os.path.dirname(__file__), "./", "data", "api_reference.json")
 
-	DISPLAY_FLATTENED_TABLE = Setting(True)
-	REMOVE_ORIGINAL_COLUMN = Setting(False)
+	DISPLAY_FLATTENED_TABLE = True
+	REMOVE_ORIGINAL_COLUMN = False
 
 	selected_methods = {
 		"GET": True,
@@ -122,7 +122,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	paginateLimitValue = 100 #Setting(100)
 
 	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
-	print(etsy_request_offsets_and_limits)
+	# print(etsy_request_offsets_and_limits)
 
 	request_lock = None
 
@@ -252,8 +252,11 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					self.etsy_client_send_request = self.CURR_SELECTED_METHOD
 
 					# clear layouts
-					self.clear_element(self.required_parameters_box)
-					self.clear_element(self.optional_parameters_box)
+					if hasattr(self, "required_parameters_box"):
+						self.clear_element(self.required_parameters_box)
+					if hasattr(self, "optional_parameters_box"):
+						self.clear_element(self.optional_parameters_box)
+
 					self.setup_arg_elements()
 
 					# clear the global args and kwargs
@@ -604,9 +607,25 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				if self.DEBUG:
 					self.debugButton = gui.button(self.buttonsArea, self, "DBG data", callback=self.debugFunc)
 
-				self.setTokenButton = gui.button(self.buttonsArea, self, "Authenticate", callback=showSetApiDialog)
-				self.sendRequestButton = gui.button(self.buttonsArea, self, "Please authenticate")
-				self.sendRequestButton.setEnabled(False)
+				# TODO: THIS SHOULD BE REACTIVE
+				if self.ETSY_API_CLIENT.shared_mem_dict.is_eldest:
+					self.setTokenButton = gui.button(self.buttonsArea, self, "Authenticate", callback=showSetApiDialog)
+					self.sendRequestButton = gui.button(self.buttonsArea, self, "Please authenticate")
+					self.sendRequestButton.setEnabled(False)
+				else:
+					# verticalArea = self.buttonsArea
+					verticalArea = gui.vBox(self.controlArea)
+					self.ETSY_API_CLIENT.shared_mem_dict.item_set_trigger = lambda : print("TRIGGERED")
+					print(self.ETSY_API_CLIENT.shared_mem_dict)
+
+					instances = len(self.ETSY_API_CLIENT.shared_mem_dict["registered_client_ids"])
+					label = gui.widgetLabel(verticalArea, f"ALREADY AUTHENTICATED IN {instances} DIFFERENT INSTANCES")
+					label.setWordWrap(True)
+					label.setStyleSheet("QLabel { color : green }")
+					self.sendRequestButton = gui.button(verticalArea, self, "Send request")
+					# self.sendRequestButton.setEnabled(True)
+					self.onAuthenticated(from_callback=False)
+
 
 			setup_control_box()
 			setup_info_box()
@@ -726,13 +745,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			setup_app_status_label("Ready")
 
 		setup_statusbar()
-		setup_sidebar()
 		setup_search_box()
+		setup_sidebar()
 		setup_content()
 
-	def onAuthenticated(self):
-		self.change_app_status_label("API successfully set")
-		self.setTokenButton.setText("Re-authenticate")
+	def onAuthenticated(self, from_callback=True):
+		if from_callback:
+			self.change_app_status_label("API successfully set")
+			self.setTokenButton.setText("Re-authenticate")
 		self.sendRequestButton.setEnabled(True)
 		self.sendRequestButton.setText("Send request")
 
@@ -747,6 +767,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
                            asyncio.create_task(
                            self.send_request()
                            ))
+
 
 		# self.ETSY_API_CLIENT = EtsyOAuth2Client(
 		# Re-initialize the client with the new token
@@ -763,15 +784,20 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 		self.enable_qgroupbox_and_color_title(self.required_parameters_box)
 		self.enable_qgroupbox_and_color_title(self.optional_parameters_box)
-
 		self.searchBox.setEnabled(True)
 
+	def closeEvent(self, event):
+		self.exit()
+		super().closeEvent(event)
+
+
+
+
 	def exit(self):
-		print("Called exit override")
+		del self.ETSY_API_CLIENT.shared_mem_dict
 
 	def processEvents(self):
 		QtWidgets.QApplication.processEvents()
-		print("Called processEvents override")
 
 	def resizeEvent(self, event):
 		w = self.tableTab.width()
