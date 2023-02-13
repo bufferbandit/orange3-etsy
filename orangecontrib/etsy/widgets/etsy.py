@@ -43,6 +43,8 @@ from orangecontrib.etsy.widgets.lib.tabletest import PandasModel
 from orangecontrib.etsy.widgets.lib.widgets_helper import WidgetsHelper, ElementTreeWidget, SetupHelper
 from orangecontrib.etsy.widgets.lib.request_helper import RequestHelper
 
+from linq import Query
+
 
 class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper):
 	name = "Etsy API"
@@ -122,7 +124,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	paginateLimitValue = 100 #Setting(100)
 
 	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
-	print(etsy_request_offsets_and_limits)
+	# print(etsy_request_offsets_and_limits)
 
 	request_lock = None
 
@@ -230,7 +232,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		for route in self.ETSY_ROUTES:
 			method_name, url, verb = route[0], route[1], route[4]
 			if verb in [k for k, v in self.selected_methods.items() if v]:
-				self.searchBox.addItem(f"[{verb}] {method_name} -> {url}")
+				self.searchBox.addItem(f"[{verb}] {method_name} -> {url}",
+				                       {"verb":verb, "method_name":method_name, "url":url})
 
 	def setup_ui(self):
 
@@ -238,11 +241,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			nonlocal self
 			self.searchBox = SearchBarComboBox(self.mainArea)
 
-			def searchBoxCallback(bar_text):
+			def searchBoxCallback(bar_text, widget):
 				nonlocal self
 				# bar_text = self.searchBox.currentText()
 				method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
 				method_name_match = method_name_regex.match(bar_text)
+
+				# current_text = widget.currentText()
+				# current_userdata = widget.itemData(widget.currentIndex())
 
 				if method_name_match:
 					method_name = method_name_match.group(2)
@@ -261,7 +267,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS = {}
 
 
-			self.searchBox.currentTextChanged.connect(searchBoxCallback)
+			# self.searchBox.currentTextChanged.connect(searchBoxCallback)
+			self.searchBox.activated[str].connect(partial(searchBoxCallback, widget=self.searchBox))
 			self.searchBox.show()
 			self.populate_search_box()
 			self.searchBox.setEnabled(False)
@@ -676,12 +683,15 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				setup_table_tab()
 				setup_tree_tab()
 
+				# self.tabWidget.setCurrentIndex(1)
+
 				setup_table()
 				setup_tree()
 
 			setup_tabs()
 			self.mainAreaBox.layout().addWidget(self.searchBox)
 			self.mainAreaBox.layout().addWidget(self.tabWidget)
+
 
 		def setup_statusbar():
 			nonlocal self
@@ -760,6 +770,13 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			port=self.ETSY_PORT,
 			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
 		)
+
+		# Can not call the dynamically added rotues on object
+		# despite being added by get_api_routes, this is a bug
+		# self.ETSY_taxonomy_items = self.ETSY_API_CLIENT.getBuyerTaxonomyNodes()
+		# self.ETSY_taxonomy_items = Query(self.ETSY_API_CLIENT.get_buyer_taxonomy_nodes()["results"])
+		self.ETSY_taxonomy_items = self.ETSY_API_CLIENT.get_buyer_taxonomy_nodes()
+
 
 		self.enable_qgroupbox_and_color_title(self.required_parameters_box)
 		self.enable_qgroupbox_and_color_title(self.optional_parameters_box)

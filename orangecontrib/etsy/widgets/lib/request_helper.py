@@ -62,7 +62,7 @@ class RequestHelper:
 				tasks.append(task)
 			results = await asyncio.gather(*tasks)
 			sorted_dicts = sorted(results, key=lambda x: sum(list(x.keys())[0]))
-			print([d.keys() for d in sorted_dicts])
+			# print([d.keys() for d in sorted_dicts])
 			merged_dicts = self.merge_dicts(sorted_dicts)
 			self.ETSY_API_RESPONSE = merged_dicts
 			self.change_http_status_label("200 OK", color="green")

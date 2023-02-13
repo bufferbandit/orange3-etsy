@@ -19,7 +19,6 @@ KEYWORDS = (
 PACKAGES = find_packages()
 
 PACKAGE_DATA = {
-    # 'orangecontrib.etsy': ['tutorials/*.ows'],
     'orangecontrib.etsy.widgets': ['icons/*'],
 }
 
@@ -30,16 +29,13 @@ DATA_FILES = [
 INSTALL_REQUIRES = [
     "Orange3 >=3.31.1",
     "BeautifulSoup4",
+    "python-linq",
     "requests",
     "superqt",
     "qasync",
     "numpy",
 ]
 
-# EXTRAS_REQUIRE = {
-#     'doc': ['sphinx', 'recommonmark', 'sphinx_rtd_theme'],
-#     'test': ['coverage'],
-# }
 
 ENTRY_POINTS = {
     # Entry points that marks this package as an orange add-on. If set, addon will
@@ -60,27 +56,15 @@ ENTRY_POINTS = {
         # Widget category specification can be seen in
         #    orangecontrib/example/widgets/__init__.py
         'Api = orangecontrib.etsy.widgets',
-    ),
-
-    # Register widget help
-    "orange.canvas.help": (
-        'html-index = orangecontrib.etsy.widgets:WIDGET_HELP_PATH',)
+    )
 }
 
 NAMESPACE_PACKAGES = ["orangecontrib"]
 
-def include_documentation(local_dir, install_dir):
-    global DATA_FILES
-
-    doc_files = []
-    for dirpath, _, files in walk(local_dir):
-        doc_files.append((dirpath.replace(local_dir, install_dir),
-                          [path.join(dirpath, f) for f in files]))
-    DATA_FILES.extend(doc_files)
 
 
-if __name__ == '__main__':
-    include_documentation('doc/_build/html', 'help/orange3-etsy')
+
+if __name__ == "__main__":
     setup(
         name=NAME,
         version=VERSION,
@@ -93,4 +77,4 @@ if __name__ == '__main__':
         namespace_packages=NAMESPACE_PACKAGES,
         include_package_data=True,
         zip_safe=False,
-    )
+)

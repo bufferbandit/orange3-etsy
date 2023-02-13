@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import QCheckBox, QSpinBox, QDoubleSpinBox, QLineEdit, QLab
     QTreeWidgetItem, QPushButton, QTreeWidget, QWidget, QHeaderView
 from sklearn.preprocessing import MultiLabelBinarizer
 
+from orangecontrib.etsy.widgets.lib.menu_helpers import TaxonomyMenuButton
+
 
 class WidgetsHelper:
     def __init__(self):
@@ -123,7 +125,15 @@ class WidgetsHelper:
             return None, None
         schema = parameter["schema"]
         element = None
-        if "enum" in schema:
+
+        if parameter_name == "taxonomy_id":
+            # if not hasattr(self, "taxonomy_button"):
+            element = TaxonomyMenuButton(
+                title="Taxonomy", results=self.ETSY_taxonomy_items["results"])
+            element.objectNameChanged.connect(lambda text : callback(
+                data=self.sender().taxonomy_id, widget=element, widget_name="taxonomy_id"))
+
+        elif "enum" in schema:
             # create QComboBox
             enum = schema["enum"]
             element = QComboBox()
@@ -216,11 +226,12 @@ class SetupHelper:
                         if (parameter["required"] if parameter else False) \
                             else self.optional_parameters_box
 
-            def elementCallback(data, widget=None):
+            def elementCallback(data, widget=None,widget_name=None):
                 nonlocal self
-                widget_name = widget.objectName()
-                print(widget_name)
-                print(self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
+                if not widget_name:
+                    widget_name = widget.objectName()
+                # print(widget_name)
+                # print(self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
                 if widget_name == "limit" or widget_name == "offset":
                     pass # TODO: Check if this kwarg does not already exist
                 self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
@@ -234,8 +245,6 @@ class SetupHelper:
             if arg_name == "limit":
                 # save the values to an attribute
                 self.limit_element = element
-
-
 
             if element is not None and label is not None:
                 parent.layout().addWidget(label)
