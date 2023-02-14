@@ -21,8 +21,7 @@ class RequestHelper:
 		for _dict in dicts:
 			for _key, _value in _dict.items():
 				offset, limit = _key
-				d = _value
-				for key, value in d.items():
+				for key, value in _value.items():
 					if key == "results":
 						# print("Num results: ", len(value))
 						pass

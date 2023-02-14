@@ -206,8 +206,12 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.df = self.df_json
 
 		if self.FLATTEN_TABLE:
-			self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
-			self.df = self.df_flattened
+			try:
+				self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
+				self.df = self.df_flattened
+			except Exception as e:
+				print("Could not flatten table")
+				QMessageBox.warning(self, "Warning", "Could not flatten table: " + str(e), QMessageBox.Ok)
 
 		# Set table data
 		model = PandasModel(self.df if self.DISPLAY_FLATTENED_TABLE
@@ -232,6 +236,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		for route in self.ETSY_ROUTES:
 			method_name, url, verb = route[0], route[1], route[4]
 			if verb in [k for k, v in self.selected_methods.items() if v]:
+				self.searchBox.verb = verb
+				self.searchBox.method_name = method_name
+				self.searchBox.url = url
 				self.searchBox.addItem(f"[{verb}] {method_name} -> {url}",
 				                       {"verb":verb, "method_name":method_name, "url":url})
 
@@ -243,35 +250,42 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 			def searchBoxCallback(bar_text, widget):
 				nonlocal self
-				# bar_text = self.searchBox.currentText()
+
+				# element = self.sender()
+				# method_name = element.method_name
+
 				method_name_regex = re.compile(r'\[(GET|POST|PUT|DELETE)\] ([a-zA-Z0-9_]+) ->')
 				method_name_match = method_name_regex.match(bar_text)
 
-				# current_text = widget.currentText()
-				# current_userdata = widget.itemData(widget.currentIndex())
+				if not method_name_match:
+					return
 
-				if method_name_match:
-					method_name = method_name_match.group(2)
-					self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
-					self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[method_name]
+				method_name = method_name_match.group(2)
 
-					self.etsy_client_send_request = self.CURR_SELECTED_METHOD
+				self.CURR_SELECTED_METHOD_NAME, self.CURR_SELECTED_URI_VAL, self.CURR_SELECTED_METHOD, \
+				self.CURR_SELECTED_METHOD_ARGS, self.CURR_SELECTED_VERB = self.ETSY_ROUTES_DICT_METHOD_NAME_KEY[method_name]
 
-					# clear layouts
-					if hasattr(self, "required_parameters_box"):
-						self.clear_element(self.required_parameters_box)
-					if hasattr(self, "optional_parameters_box"):
-						self.clear_element(self.optional_parameters_box)
+				self.etsy_client_send_request = self.CURR_SELECTED_METHOD
 
-					self.setup_arg_elements()
+				# clear layouts
+				if hasattr(self, "required_parameters_box"):
+					self.clear_element(self.required_parameters_box)
+				if hasattr(self, "optional_parameters_box"):
+					self.clear_element(self.optional_parameters_box)
 
-					# clear the global args and kwargs
-					self.ETSY_API_CLIENT_SEND_REQUEST_ARGS = []
-					self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS = {}
+				self.setup_arg_elements()
+
+				# clear the global args and kwargs
+				self.ETSY_API_CLIENT_SEND_REQUEST_ARGS = []
+				self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS = {}
 
 
 			# self.searchBox.currentTextChanged.connect(searchBoxCallback)
-			self.searchBox.activated[str].connect(partial(searchBoxCallback, widget=self.searchBox))
+			# self.searchBox.activated[str].connect(partial(searchBoxCallback, widget=self.searchBox))
+			# self.searchBox.currentTextChanged[str].connect(partial(searchBoxCallback, widget=self.searchBox))
+
+			self.searchBox.currentIndexChanged[str].connect(partial(searchBoxCallback, widget=self.searchBox))
+
 			self.searchBox.show()
 			self.populate_search_box()
 			self.searchBox.setEnabled(False)
