@@ -27,12 +27,13 @@ DATA_FILES = [
 ]
 
 INSTALL_REQUIRES = [
-    "Orange3 >=3.31.1",
+    # "Orange3 >=3.31.1",
     "BeautifulSoup4",
     "python-linq",
     "requests",
     "superqt",
     "qasync",
+    "etsyv3",
     "numpy",
 ]
 
@@ -68,6 +69,7 @@ if __name__ == "__main__":
     setup(
         name=NAME,
         version=VERSION,
+        install_requires=INSTALL_REQUIRES,
         description=DESCRIPTION,
         packages=PACKAGES,
         package_data=PACKAGE_DATA,

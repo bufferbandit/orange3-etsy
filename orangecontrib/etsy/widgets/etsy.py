@@ -210,8 +210,11 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
 				self.df = self.df_flattened
 			except Exception as e:
-				print("Could not flatten table")
-				QMessageBox.warning(self, "Warning", "Could not flatten table: " + str(e), QMessageBox.Ok)
+				warning_message = "Could not flatten table (binarize_columns): "
+				# print(warning_message)
+				QMessageBox.warning(self, "Warning", warning_message + str(e), QMessageBox.Ok)
+				self.warning(warning_message + str(e))
+				# raise
 
 		# Set table data
 		model = PandasModel(self.df if self.DISPLAY_FLATTENED_TABLE
@@ -444,7 +447,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
-				self.paginateSlider.setRange(1, 1000)
+				self.paginateSlider.setRange(1, 10000)
+				# self.paginateSlider._slider.setRange(1, 999999999999)
 				self.paginateSlider.setSliderPosition([1, self.paginateLimitValue])
 				self.paginateSlider.setTickInterval(100)
 				self.paginateSlider.setEnabled(False)
@@ -628,24 +632,10 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				if self.DEBUG:
 					self.debugButton = gui.button(self.buttonsArea, self, "DBG data", callback=self.debugFunc)
 
-				# TODO: THIS SHOULD BE REACTIVE
-				if self.ETSY_API_CLIENT.shared_mem_dict.is_eldest:
-					self.setTokenButton = gui.button(self.buttonsArea, self, "Authenticate", callback=showSetApiDialog)
-					self.sendRequestButton = gui.button(self.buttonsArea, self, "Please authenticate")
-					self.sendRequestButton.setEnabled(False)
-				else:
-					# verticalArea = self.buttonsArea
-					verticalArea = gui.vBox(self.controlArea)
-					self.ETSY_API_CLIENT.shared_mem_dict.item_set_trigger = lambda : print("TRIGGERED")
-					print(self.ETSY_API_CLIENT.shared_mem_dict)
+				self.setTokenButton = gui.button(self.buttonsArea, self, "Authenticate", callback=showSetApiDialog)
+				self.sendRequestButton = gui.button(self.buttonsArea, self, "Please authenticate")
+				self.sendRequestButton.setEnabled(False)
 
-					instances = len(self.ETSY_API_CLIENT.shared_mem_dict["registered_client_ids"])
-					label = gui.widgetLabel(verticalArea, f"ALREADY AUTHENTICATED IN {instances} DIFFERENT INSTANCES")
-					label.setWordWrap(True)
-					label.setStyleSheet("QLabel { color : green }")
-					self.sendRequestButton = gui.button(verticalArea, self, "Send request")
-					# self.sendRequestButton.setEnabled(True)
-					self.onAuthenticated(from_callback=False)
 
 
 			setup_control_box()
@@ -818,14 +808,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.searchBox.setEnabled(True)
 
 	def closeEvent(self, event):
-		self.exit()
 		super().closeEvent(event)
-
-
-
-
-	def exit(self):
-		del self.ETSY_API_CLIENT.shared_mem_dict
 
 	def processEvents(self):
 		QtWidgets.QApplication.processEvents()
