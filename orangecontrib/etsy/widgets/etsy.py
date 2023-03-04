@@ -176,11 +176,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		def exception_hook(exctype, value, traceback):
 			exception_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 			error_msg = f"Error: {exctype}: {value}"
+			# error_msg = f"Error: {traceback.format_exc()}"
 			with open(os.path.expanduser("~/etsy_orange_error_log.txt"), "a+", encoding="utf8") as f:
 				f.write(f"\n[{exception_time}] Exception occurred\n" + self.get_traceback())
 			self.change_app_status_label(error_msg, "red")
 			self.transform_err = Msg(error_msg)
 			self.error(error_msg)
+
+			error_msg = traceback.format_exc()
 			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
 			sys.__excepthook__(exctype, value, traceback)
 		sys.excepthook = exception_hook
@@ -206,15 +209,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.df = self.df_json
 
 		if self.FLATTEN_TABLE:
-			try:
-				self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
-				self.df = self.df_flattened
-			except Exception as e:
-				warning_message = "Could not flatten table (binarize_columns): "
-				# print(warning_message)
-				QMessageBox.warning(self, "Warning", warning_message + str(e), QMessageBox.Ok)
-				self.warning(warning_message + str(e))
-				# raise
+			self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
+			self.df = self.df_flattened
+			# raise
 
 		# Set table data
 		model = PandasModel(self.df if self.DISPLAY_FLATTENED_TABLE
@@ -447,7 +444,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
-				self.paginateSlider.setRange(1, 10000)
+				# _range_num = 10000
+				_range_num = 1000000
+				self.paginateSlider.setRange(1, _range_num)
 				# self.paginateSlider._slider.setRange(1, 999999999999)
 				self.paginateSlider.setSliderPosition([1, self.paginateLimitValue])
 				self.paginateSlider.setTickInterval(100)

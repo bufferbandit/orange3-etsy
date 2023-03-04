@@ -14,7 +14,7 @@ from Orange.data import Domain, ContinuousVariable, DiscreteVariable
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal, QVariant, QSize
 from PyQt5.QtWidgets import QCheckBox, QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, \
-    QTreeWidgetItem, QPushButton, QTreeWidget, QWidget, QHeaderView
+    QTreeWidgetItem, QPushButton, QTreeWidget, QWidget, QHeaderView, QMessageBox
 from sklearn.preprocessing import MultiLabelBinarizer
 
 from orangecontrib.etsy.widgets.lib.menu_helpers import TaxonomyMenuButton
@@ -85,13 +85,19 @@ class WidgetsHelper:
         all_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").all(0)
         any_lists = lambda column: (column.sample(int(len(column) * 0.1)).apply(type).astype(str) == "<class 'list'>").any(0)
         for column in df.columns:
+            print(1,column)
             if any_lists(df[column]):
-                transformed_column = mlb.fit_transform(df[column])
-                transformed_column = pd.DataFrame(transformed_column,
-                                                  columns=[column + "_" + str(x) for x in mlb.classes_])
-                df = pd.concat([df, transformed_column], axis=1)
-                if remove_original_columns:
-                    df = df.drop(column, axis=1)
+                try:
+                    transformed_column = mlb.fit_transform(df[column])
+                    transformed_column = pd.DataFrame(transformed_column,
+                                                      columns=[column + "_" + str(x) for x in mlb.classes_])
+                    df = pd.concat([df, transformed_column], axis=1)
+                    if remove_original_columns:
+                        df = df.drop(column, axis=1)
+                except Exception as e:
+                    warning_message = "Could not flatten column (binarize_columns): " + column + " "
+                    QMessageBox.warning(self, "Warning", warning_message + str(e), QMessageBox.Ok)
+                    self.warning(warning_message + str(e))
         return df
 
     def clear_element(self, element):
