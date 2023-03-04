@@ -243,6 +243,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				                       {"verb":verb, "method_name":method_name, "url":url})
 
 	def setup_ui(self):
+
 		def setup_search_box():
 			nonlocal self
 			self.searchBox = SearchBarComboBox(self.mainArea)
