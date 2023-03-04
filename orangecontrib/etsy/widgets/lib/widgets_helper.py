@@ -95,7 +95,7 @@ class WidgetsHelper:
                     if remove_original_columns:
                         df = df.drop(column, axis=1)
                 except Exception as e:
-                    warning_message = "Could not flatten column (binarize_columns): " + column + " "
+                    warning_message = f"Could not flatten column (binarize_columns): {column} "
                     QMessageBox.warning(self, "Warning", warning_message + str(e), QMessageBox.Ok)
                     self.warning(warning_message + str(e))
         return df
@@ -174,7 +174,7 @@ class WidgetsHelper:
             # create QDoubleSpinBox
             element = QDoubleSpinBox()
             element.setReadOnly(False)
-            element.textChanged.connect(partial(callback, widget=element))
+            element.valueChanged.connect(partial(callback, widget=element))
 
         elif schema["type"] == "string":
             # create QLineEdit
