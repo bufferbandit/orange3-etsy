@@ -107,7 +107,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	ETSSY_API_REFERENCE_FILE_PATH = os.path.join(
 		os.path.dirname(__file__), "./", "data", "api_reference.json")
 
-	DISPLAY_FLATTENED_TABLE = True
+	DISPLAY_FLATTENED_TABLE = False
 	REMOVE_ORIGINAL_COLUMN = False
 
 	selected_methods = {
@@ -203,19 +203,16 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.treeWidget.setModel(self.tree_model)
 		self.tree_model.load(self.ETSY_API_RESPONSE)
 
-		# Populate table view
-		# self.df_json = pd.json_normalize(self.ETSY_API_RESPONSE)
 		self.df_json = pd.DataFrame(self.ETSY_API_RESPONSE["results"])
 		self.df = self.df_json
 
 		if self.FLATTEN_TABLE:
 			self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
-			self.df = self.df_flattened
-			# raise
+		# self.df = self.df_flattened
 
 		# Set table data
-		model = PandasModel(self.df if self.DISPLAY_FLATTENED_TABLE
-		                    else self.df_flattened)
+		model = PandasModel(self.df_flattened if self.DISPLAY_FLATTENED_TABLE
+							else self.df)
 		self.tableWidget.setModel(model)
 
 		# Set output data
