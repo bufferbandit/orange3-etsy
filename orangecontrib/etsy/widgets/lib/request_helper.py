@@ -33,6 +33,31 @@ class RequestHelper:
 						print("Merged for " + key)
 						merged[key] = value
 		return merged
+
+	def handle_etsy_api_client_exception(self, exception, error_msg_prefix, status_code):
+		ERROR_MESSAGES = {
+			BadRequest: ("400 Bad request. ", "400"),
+			Unauthorised: ("401 Unauthorised. ", "401"),
+			Forbidden: ("403 Forbidden. ", "403"),
+			Conflict: ("409 Conflict. ", "409"),
+			NotFound: ("404 Not found. ", "404"),
+			InternalError: ("500 Internal server error. ", "500")
+		}
+		if type(exception) in ERROR_MESSAGES:
+			error_msg_prefix, status_code = ERROR_MESSAGES[type(exception)]
+		else:
+			error_msg_prefix = "Unknown error while sending request: "
+			status_code = "Error"
+		error_msg = error_msg_prefix + str(exception)
+		QMessageBox.critical(self, status_code, error_msg, QMessageBox.Ok)
+		self.change_http_status_label(error_msg, color="red")
+		self.transform_err = Msg(error_msg)
+		self.error(error_msg)
+		error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
+		self.change_app_status_label(error_msg[:120] + "...", "red")
+		QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
+		print(self.get_traceback())
+
 	async def send_request(self):
 		try:
 			# print(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
@@ -66,51 +91,8 @@ class RequestHelper:
 			self.ETSY_API_RESPONSE = merged_dicts
 			self.change_http_status_label("200 OK", color="green")
 			self.populate_data()
-		except BadRequest as e:
-			error_msg = "400 Bad request. "
-			QMessageBox.critical(self, "400", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-		except Unauthorised as e:
-			error_msg = "401 Unauthorised. "
-			QMessageBox.critical(self, "401", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-		except Forbidden as e:
-			error_msg = "403 Forbidden. "
-			QMessageBox.critical(self, "403", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-		except Conflict as e:
-			error_msg = "409 Conflict. "
-			QMessageBox.critical(self, "409", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-		except NotFound as e:
-			error_msg = "404 Not found. "
-			QMessageBox.critical(self, "404", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-		except InternalError as e:
-			error_msg = "500 Internal server error. "
-			QMessageBox.critical(self, "500", error_msg, QMessageBox.Ok)
-			self.change_http_status_label(error_msg + str(e), color="red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
 		except Exception as e:
-			# Re-raising it does not seem to work
-			self.change_http_status_label("Unknown error while sending request: " + e.args[0], color="red")
-			error_msg = f"Unknown error while sending request: {e.__class__.__name__}: {e.args[0]}"
-			self.change_app_status_label(error_msg[:120]+"...", "red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-			QMessageBox.critical(self, "Error", error_msg[:1500]+"...", QMessageBox.Ok)
-			print(self.get_traceback())
+			self.handle_etsy_api_client_exception(e)
 
 
 
