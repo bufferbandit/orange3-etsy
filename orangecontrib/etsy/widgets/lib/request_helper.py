@@ -47,9 +47,8 @@ class RequestHelper:
 		error_msg_prefix,status_code  = ERROR_MESSAGES[type(exception)]
 
 		error_msg = error_msg_prefix
-		QMessageBox.critical(self, status_code, error_msg, QMessageBox.Ok)
 		self.change_http_status_label(error_msg, color="red")
-		self.transform_err = Msg(error_msg)
+		# self.transform_err = Msg(error_msg)
 		self.error(error_msg)
 		error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
 		self.change_app_status_label(error_msg[:120] + "...", "red")
