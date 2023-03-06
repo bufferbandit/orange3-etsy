@@ -57,6 +57,7 @@ class RequestHelper:
 		self.change_app_status_label(error_msg[:120] + "...", "red")
 		QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
 		print(self.get_traceback())
+		raise exception
 
 	async def send_request(self):
 		try:

@@ -247,7 +247,7 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 						"redirect_uri": parent_context.redirect_uri,
 						"code": parent_context.code,
 						"code_verifier": parent_context.code_verifier
-					})
+					},verify=False)
 				tokens = res.json()
 				message = "Successfully retrieved tokens" if res.status_code == 200 \
 					else "Failed to retrieve tokens"
@@ -299,13 +299,13 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		if self.verbose: print("New timer started with interval", self.refresh_token_timer.interval)
 
 	def get_refresh_token(self):
-		# These can't make use of the requests.session object because it's not initialized yet
+		# These can't make use of the requests.session object because it's not in this object
 		res = requests.post("https://api.etsy.com/v3/public/oauth/token",
 		                    headers={"Content-Type": "application/json"}, json={
 				"grant_type": "refresh_token",
 				"client_id": self.api_token,
 				"refresh_token": self.refresh_token
-			})
+			}, verify=False)
 		tokens = res.json()
 
 		self.access_token = tokens["access_token"]

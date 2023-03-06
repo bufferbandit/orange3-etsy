@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import re
+import ssl
 import sys
 import textwrap
 import traceback
@@ -12,6 +13,7 @@ from functools import partial
 
 import pandas as pd
 import qasync
+import requests
 from AnyQt import QtGui
 from AnyQt.QtCore import Qt, QSize
 from AnyQt.QtWidgets import QTableView, QLineEdit
@@ -30,6 +32,7 @@ from PyQt5.QtCore import QEventLoop
 from PyQt5.QtWidgets import QTreeView, QInputDialog, QMessageBox, QSlider, QDoubleSpinBox, QComboBox, QAbstractItemView, \
 	QCheckBox, QSpinBox, QLabel, QSpacerItem
 from superqt import QLabeledRangeSlider
+from urllib3.exceptions import InsecureRequestWarning
 
 # from qtrangeslider import QLabeledRangeSlider
 
@@ -81,6 +84,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	ETSY_PORT = 5000
 	ETSY_API_CLIENT = None
 
+	ETSY_HTTP_PROXY = "http://localhost:8080"
+	ETSY_HTTPS_PROXY = "https://localhost:8080"
+
 	def default(self, *args, **kwargs):
 		message = "This is the default function. Please select a function from the dropdown."
 		self.change_app_status_label(message)
@@ -115,13 +121,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		"POST": False,
 		"PUT": False,
 		"DELETE": False,
+		"PATCH": False
 	}
 
 	df = None
 	df_flattened = None
 	df_json = None
 
-	paginateLimitValue = 100 #Setting(100)
+	paginateLimitValue = 100 # Setting(100)
 
 	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
 	# print(etsy_request_offsets_and_limits)
@@ -133,6 +140,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	sliderPosition = None
 
+	USE_PROXY = True
+
 
 
 
@@ -140,6 +149,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	def __init__(self):
 		super().__init__()
+		requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 		self.ETSY_API_CLIENT = EtsyOAuth2Client(
 			api_token=self.ETSY_API_TOKEN,
 			auto_close_browser=self.ETSY_AUTO_CLOSE_BROWSER,
@@ -149,8 +159,9 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			host=self.ETSY_HOST,
 			port=self.ETSY_PORT,
 			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
-
 		)
+		# self.ETSY_API_CLIENT.session = requests.Session()
+
 		# asyncio.set_event_loop(qasync.QEventLoop(self))
 		self.loop = qasync.QEventLoop(self)
 		WidgetsHelper.__init__(self)
@@ -312,6 +323,64 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 				self.etsy_options_tree = ElementTreeWidget()
 				self.etsy_options_tree.set_top_level_element(QLabel("Etsy client options"))
+
+
+				#
+				self.etsyClientProxyTreeMenu = ElementTreeWidget()
+				self.check_USE_PROXY = QCheckBox("Use proxy")
+
+				self.etsyClientProxyTreeMenu.set_top_level_element(self.check_USE_PROXY)
+
+				self.check_ETSY_HTTP_PROXY = QLineEdit("Http proxy")
+				self.check_ETSY_HTTP_PROXY.setText(self.ETSY_HTTP_PROXY)
+				self.check_ETSY_HTTP_PROXY.textChanged.connect(
+					lambda: setattr(self, "ETSY_HTTP_PROXY", self.check_ETSY_HTTP_PROXY.text()))
+
+				self.check_ETSY_HTTPS_PROXY = QLineEdit("Https proxy")
+				self.check_ETSY_HTTPS_PROXY.setText(self.ETSY_HTTPS_PROXY)
+				self.check_ETSY_HTTPS_PROXY.textChanged.connect(
+					lambda: setattr(self, "ETSY_HTTPS_PROXY", self.check_ETSY_HTTPS_PROXY.text()))
+
+				def check_USE_PROXY_callback():
+					os.environ["HTTP_PROXY"] = "http://localhost:8080" \
+						if self.check_USE_PROXY.isChecked() else ""
+					os.environ["HTTPS_PROXY"] = "http://localhost:8080" \
+						if self.check_USE_PROXY.isChecked() else ""
+					os.environ["NO_PROXY"] = "127.0.0.1,localhost,.local" \
+						if self.check_USE_PROXY.isChecked() else ""
+
+
+					if self.check_USE_PROXY.isChecked():
+						# extremely dumb sollution but could not different because annoying requests
+						# devs annoyingly decided to not respect wishes and be able to verify on session
+						self.ETSY_API_CLIENT.session.get = partial(self.ETSY_API_CLIENT.session.get, verify=not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.post = partial(self.ETSY_API_CLIENT.session.post, verify=not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.put = partial(self.ETSY_API_CLIENT.session.put, verify=not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.delete = partial(self.ETSY_API_CLIENT.session.delete, verify=not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.patch = partial(self.ETSY_API_CLIENT.session.patch, verify=not self.check_USE_PROXY.isChecked())
+
+
+				self.check_USE_PROXY.stateChanged.connect(check_USE_PROXY_callback)
+
+				# Use .toggle instead of .setChecked and do it here in order
+				# to execute the above
+				# if self.USE_PROXY: self.check_USE_PROXY.toggle()
+
+				self.etsyClientProxyTreeMenu.add_element(
+				 	self.build_element_with_label("Http proxy", self.check_ETSY_HTTP_PROXY))
+
+				self.etsyClientProxyTreeMenu.add_element(
+					self.build_element_with_label("Https proxy", self.check_ETSY_HTTPS_PROXY))
+
+
+
+				# Ideally this should be in etsyOptionsControlBox but two tree menu's
+				# dont seem to be able to be combined
+				self.controlBox.layout().addWidget(self.etsyClientProxyTreeMenu)
+
+
+
+
 
 				#  the above widgets but then as pyqt elements
 				self.check_ETSY_AUTO_CLOSE_BROWSER = QCheckBox("Auto close browser")
@@ -791,6 +860,10 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			port=self.ETSY_PORT,
 			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
 		)
+
+		# this really anoyingly has to be called here because this is where
+		# ETSY_API_CLIENT.session is only initialized
+		if self.USE_PROXY: self.check_USE_PROXY.toggle()
 
 		# Can not call the dynamically added rotues on object
 		# despite being added by get_api_routes, this is a bug
