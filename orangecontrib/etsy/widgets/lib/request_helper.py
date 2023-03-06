@@ -34,7 +34,7 @@ class RequestHelper:
 						merged[key] = value
 		return merged
 
-	def handle_etsy_api_client_exception(self, exception, error_msg_prefix, status_code):
+	def handle_etsy_api_client_exception(self, exception):
 		ERROR_MESSAGES = {
 			BadRequest: ("400 Bad request. ", "400"),
 			Unauthorised: ("401 Unauthorised. ", "401"),
@@ -43,12 +43,10 @@ class RequestHelper:
 			NotFound: ("404 Not found. ", "404"),
 			InternalError: ("500 Internal server error. ", "500")
 		}
-		if type(exception) in ERROR_MESSAGES:
-			error_msg_prefix, status_code = ERROR_MESSAGES[type(exception)]
-		else:
-			error_msg_prefix = "Unknown error while sending request: "
-			status_code = "Error"
-		error_msg = error_msg_prefix + str(exception)
+
+		error_msg_prefix,status_code  = ERROR_MESSAGES[type(exception)]
+
+		error_msg = error_msg_prefix
 		QMessageBox.critical(self, status_code, error_msg, QMessageBox.Ok)
 		self.change_http_status_label(error_msg, color="red")
 		self.transform_err = Msg(error_msg)
