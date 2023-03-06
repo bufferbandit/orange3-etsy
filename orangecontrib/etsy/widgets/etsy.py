@@ -140,7 +140,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	sliderPosition = None
 
-	USE_PROXY = Falses
+	USE_PROXY = False
 
 
 
