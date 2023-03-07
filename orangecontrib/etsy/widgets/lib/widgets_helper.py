@@ -151,7 +151,8 @@ class WidgetsHelper:
             element.stateChanged.connect(partial(callback, widget=element))
 
         elif schema["type"] == "integer"\
-                and not parameter["name"] in ["shop_id"]:
+                and not parameter["name"] in ["shop_id", "taxonomy_id"]:
+            # print("Parameter -->", parameter["name"])
             # create QSpinBox
             element = QSpinBox()
             element.setReadOnly(False)

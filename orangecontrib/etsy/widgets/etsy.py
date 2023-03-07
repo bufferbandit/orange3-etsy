@@ -219,12 +219,13 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 		if self.FLATTEN_TABLE:
 			self.df_flattened = self.binarize_columns(self.df, self.REMOVE_ORIGINAL_COLUMN)
-		# self.df = self.df_flattened
+			self.df = self.df_flattened
 
 		# Set table data
 		model = PandasModel(self.df_flattened if self.DISPLAY_FLATTENED_TABLE
-							else self.df)
+							else self.df_json)
 		self.tableWidget.setModel(model)
+
 
 		# Set output data
 		table = self.pandas_to_orange(self.df)
