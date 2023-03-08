@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import logging
 import os
 import re
 import ssl
@@ -50,6 +51,7 @@ from linq import Query
 
 
 class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper):
+	logger = logging.getLogger(__name__)
 	name = "Etsy API"
 	description = "Orange widget for using the Etsy API and its data."
 	icon = "icons/etsy_icon_round.svg"
@@ -90,7 +92,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	def default(self, *args, **kwargs):
 		message = "This is the default function. Please select a function from the dropdown."
 		self.change_app_status_label(message)
-		print(message)
+		this.logger.debug(message)
 
 	etsy_client_send_request = default
 	# etsy_client_send_request = lambda *args,**kwargs:QMessageBox.warning(None,"Title", "This is the default function. Please select a function from the dropdown.")
@@ -131,7 +133,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	paginateLimitValue = 100 # Setting(100)
 
 	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
-	# print(etsy_request_offsets_and_limits)
+	# this.logger.debug(etsy_request_offsets_and_limits)
 
 	request_lock = None
 

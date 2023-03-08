@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
 			def rec(*args, **kwargs):
 				sender = self.sender()
-				print(args, kwargs)
+				this.logger.debug(args, kwargs)
 
 			self.openMenuButton.objectNameChanged.connect(rec)
 

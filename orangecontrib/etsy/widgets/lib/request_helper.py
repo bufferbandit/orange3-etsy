@@ -23,14 +23,14 @@ class RequestHelper:
 				offset, limit = _key
 				for key, value in _value.items():
 					if key == "results":
-						# print("Num results: ", len(value))
+						# this.logger.debug("Num results: ", len(value))
 						pass
 					# this could be done with checking for __add__ imo, but that doesnt seem to work
 					if isinstance(value, (int, float, list, tuple)):
 						empty_default_object = __builtins__[type(value).__name__]()
 						merged[key] = merged.get(key, empty_default_object) + value
 					else:
-						print("Merged for " + key)
+						this.logger.debug("Merged for " + key)
 						merged[key] = value
 		return merged
 
@@ -53,12 +53,12 @@ class RequestHelper:
 		error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
 		self.change_app_status_label(error_msg[:120] + "...", "red")
 		QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
-		print(self.get_traceback())
+		this.logger.debug(self.get_traceback())
 		raise exception
 
 	async def send_request(self):
 		try:
-			# print(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
+			# this.logger.debug(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
 			for offset, limit in self.etsy_request_offsets_and_limits:
 			# For some reason the offset and limit are swapped around
@@ -84,7 +84,7 @@ class RequestHelper:
 				tasks.append(task)
 			results = await asyncio.gather(*tasks)
 			sorted_dicts = sorted(results, key=lambda x: sum(list(x.keys())[0]))
-			# print([d.keys() for d in sorted_dicts])
+			# this.logger.debug([d.keys() for d in sorted_dicts])
 			merged_dicts = self.merge_dicts(sorted_dicts)
 			self.ETSY_API_RESPONSE = merged_dicts
 			self.change_http_status_label("200 OK", color="green")

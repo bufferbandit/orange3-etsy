@@ -41,7 +41,7 @@ class WidgetsHelper:
             elif _type in [np.datetime64]:
                 attr_val = TimeVariable(col)
             elif _type in [object]:
-                # print("Skipping obj column: ", col)
+                # this.logger.debug("Skipping obj column: ", col)
                 pass
             # from Orange.data import Variable
             # attr_val = Variable(col)
@@ -126,7 +126,7 @@ class WidgetsHelper:
     def build_pyqt_element_from_parameter(self, parameter_name, callback):
         parameter = self.parameters.get(parameter_name)
         if not parameter:
-            # print("Parameter not found in arguments documentation: ", parameter_name)
+            # this.logger.debug("Parameter not found in arguments documentation: ", parameter_name)
             return None, None
         schema = parameter["schema"]
         element = None
@@ -152,7 +152,7 @@ class WidgetsHelper:
 
         elif schema["type"] == "integer"\
                 and not parameter["name"] in ["shop_id", "taxonomy_id"]:
-            # print("Parameter -->", parameter["name"])
+            this.logger.debug("Parameter -->", parameter["name"])
             # create QSpinBox
             element = QSpinBox()
             element.setReadOnly(False)
@@ -236,8 +236,8 @@ class SetupHelper:
                 nonlocal self
                 if not widget_name:
                     widget_name = widget.objectName()
-                # print(widget_name)
-                # print(self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
+                # this.logger.debug(widget_name)
+                # this.logger.debug(self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS)
                 if widget_name == "limit" or widget_name == "offset":
                     pass # TODO: Check if this kwarg does not already exist
                 self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS[widget_name] = data
