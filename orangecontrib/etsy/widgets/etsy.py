@@ -51,14 +51,16 @@ from linq import Query
 
 
 class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper):
-	logger = logging.getLogger(__name__)
 	name = "Etsy API"
 	description = "Orange widget for using the Etsy API and its data."
 	icon = "icons/etsy_icon_round.svg"
 	priority = 100
 	keywords = ["Etsy", "API", "data", "web", "table"]
 
-	DEBUG = False
+	DEBUG = True
+	logger = logging.getLogger(__name__)
+	logger.disabled = DEBUG
+
 
 	class Outputs:
 		data = Output("Etsy API data", Table)
@@ -92,7 +94,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	def default(self, *args, **kwargs):
 		message = "This is the default function. Please select a function from the dropdown."
 		self.change_app_status_label(message)
-		this.logger.debug(message)
+		self.logger.debug(message)
 
 	etsy_client_send_request = default
 	# etsy_client_send_request = lambda *args,**kwargs:QMessageBox.warning(None,"Title", "This is the default function. Please select a function from the dropdown.")
