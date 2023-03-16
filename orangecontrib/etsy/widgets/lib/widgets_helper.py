@@ -131,7 +131,7 @@ class WidgetsHelper:
         schema = parameter["schema"]
         element = None
 
-        if parameter_name == "taxonomy_id" and self.TAXONOMY_ID_RAW:
+        if parameter_name == "taxonomy_id" and not self.TAXONOMY_ID_RAW:
             # if not hasattr(self, "taxonomy_button"):
             element = TaxonomyMenuButton(
                 title="Taxonomy", results=self.ETSY_taxonomy_items["results"])
@@ -175,7 +175,7 @@ class WidgetsHelper:
             # self.logger.debug("Parameter -->", parameter["name"])
 
             # element.textChanged.connect(partial(callback, widget=element))
-            element.stateChanged.connect(partial(callback, widget=element))
+            element.valueChanged.connect(partial(callback, widget=element))
 
 
         elif schema["type"] == "number" \
