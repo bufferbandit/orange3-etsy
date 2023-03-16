@@ -131,7 +131,7 @@ class WidgetsHelper:
         schema = parameter["schema"]
         element = None
 
-        if parameter_name == "taxonomy_id":
+        if parameter_name == "taxonomy_id" and self.TAXONOMY_ID_RAW:
             # if not hasattr(self, "taxonomy_button"):
             element = TaxonomyMenuButton(
                 title="Taxonomy", results=self.ETSY_taxonomy_items["results"])
@@ -149,10 +149,16 @@ class WidgetsHelper:
             # create QCheckBox
             element = QCheckBox()
             element.stateChanged.connect(partial(callback, widget=element))
+        #
+        # elif schema["type"] == "integer"\
+        #         and not parameter["name"] in ["shop_id", "taxonomy_id"]:
+        elif schema["type"] == "integer" \
+                and not (parameter["name"] in ["shop_id", "taxonomy_id"]) \
+                or (parameter["name"] == "taxonomy_id" and self.TAXONOMY_ID_RAW):
+            # Code block to execute when the condition is True
 
-        elif schema["type"] == "integer"\
-                and not parameter["name"] in ["shop_id", "taxonomy_id"]:
-            this.logger.debug("Parameter -->", parameter["name"])
+            # Code block to execute when the condition is True
+
             # create QSpinBox
             element = QSpinBox()
             element.setReadOnly(False)
@@ -166,7 +172,10 @@ class WidgetsHelper:
             default = schema.get("default", None)
             if default: element.setValue(default)
 
-            element.textChanged.connect(partial(callback, widget=element))
+            # self.logger.debug("Parameter -->", parameter["name"])
+
+            # element.textChanged.connect(partial(callback, widget=element))
+            element.stateChanged.connect(partial(callback, widget=element))
 
 
         elif schema["type"] == "number" \

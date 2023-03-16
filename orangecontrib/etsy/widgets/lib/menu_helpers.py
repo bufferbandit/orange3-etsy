@@ -84,6 +84,7 @@ class TaxonomyMenuButton(QPushButton):
 
 
 if __name__ == "__main__":
+	results = None
 	class MainWindow(QMainWindow):
 		def __init__(self):
 			super().__init__()
@@ -92,7 +93,7 @@ if __name__ == "__main__":
 
 			def rec(*args, **kwargs):
 				sender = self.sender()
-				this.logger.debug(args, kwargs)
+				self.logger.debug(args, kwargs)
 
 			self.openMenuButton.objectNameChanged.connect(rec)
 

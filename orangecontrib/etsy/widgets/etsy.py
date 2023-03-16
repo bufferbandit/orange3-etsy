@@ -57,7 +57,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	priority = 100
 	keywords = ["Etsy", "API", "data", "web", "table"]
 
-	DEBUG = True
+	DEBUG = False
 	logger = logging.getLogger(__name__)
 	logger.disabled = DEBUG
 
@@ -145,6 +145,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	sliderPosition = None
 
 	USE_PROXY = False
+
+	TAXONOMY_ID_RAW = False
 
 
 
@@ -330,6 +332,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.etsy_options_tree.set_top_level_element(QLabel("Etsy client options"))
 
 
+
 				#
 				self.etsyClientProxyTreeMenu = ElementTreeWidget()
 				self.check_USE_PROXY = QCheckBox("Use proxy")
@@ -459,6 +462,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.httpVerbsTreeMenu.set_top_level_element(QLabel("HTTP verbs"))
 				# self.httpVerbsTreeMenu.setEnabled(False)
 				self.disable_qgroupbox_and_grayout_title(self.httpVerbsTreeMenu)
+
+				# TODO: Perhapse activate/deactive this if taxonomy is in the elements
+				self.check_TAXONOMY_ID_RAW = QCheckBox("Raw taxonomy id")
+				self.check_TAXONOMY_ID_RAW.stateChanged.connect(
+					lambda: setattr(self, "TAXONOMY_ID_RAW", self.check_TAXONOMY_ID_RAW.isChecked()))
+				self.check_TAXONOMY_ID_RAW.setChecked(self.TAXONOMY_ID_RAW)
+
+				self.controlBox.layout().addWidget(self.check_TAXONOMY_ID_RAW)
 
 				def build_method_button(method):
 					cb = QCheckBox(method)
