@@ -7,6 +7,7 @@ import re
 import ssl
 import sys
 import textwrap
+import threading
 import traceback
 from collections import ChainMap
 from datetime import datetime
@@ -151,6 +152,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	CLIENT_MAX_THREADS = 8
 
+	LOG_TO_FILE = False
+
 
 
 
@@ -193,21 +196,23 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			stackstr += "  " + traceback.format_exc().lstrip(trc)
 		return stackstr
 
-	def setup_custom_exception_hook(self):
-		def exception_hook(exctype, value, traceback):
-			exception_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-			error_msg = f"Error: {exctype}: {value}"
-			# error_msg = f"Error: {traceback.format_exc()}"
+	def exception_hook(self, exctype, value, traceback):
+		exception_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+		error_msg = f"Error: {exctype}: {value}"
+		# error_msg = f"Error: {traceback.format_exc()}"
+		if self.LOG_TO_FILE:
 			with open(os.path.expanduser("~/etsy_orange_error_log.txt"), "a+", encoding="utf8") as f:
 				f.write(f"\n[{exception_time}] Exception occurred\n" + self.get_traceback())
-			self.change_app_status_label(error_msg, "red")
-			self.transform_err = Msg(error_msg)
-			self.error(error_msg)
-
-			error_msg = traceback.format_exc()
-			QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
-			sys.__excepthook__(exctype, value, traceback)
-		sys.excepthook = exception_hook
+		self.change_app_status_label(error_msg, "red")
+		self.transform_err = Msg(error_msg)
+		self.error(error_msg)
+		# error_msg = traceback.format_exc()
+		error_msg = self.get_traceback()
+		QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
+		sys.__excepthook__(exctype, value, traceback)
+	def setup_custom_exception_hook(self):
+		sys.excepthook = self.exception_hook
+		threading.excepthook =  self.exception_hook
 
 	def populate_data(self):
 		if not self.ETSY_API_RESPONSE:
@@ -369,11 +374,13 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 					if self.check_USE_PROXY.isChecked():
 						# extremely dumb solution but could not different because annoying requests
 						# devs annoyingly decided to not respect wishes and be able to verify on session
-						self.ETSY_API_CLIENT.session.get = partial(self.ETSY_API_CLIENT.session.get, verify=not self.check_USE_PROXY.isChecked())
-						self.ETSY_API_CLIENT.session.post = partial(self.ETSY_API_CLIENT.session.post, verify=not self.check_USE_PROXY.isChecked())
-						self.ETSY_API_CLIENT.session.put = partial(self.ETSY_API_CLIENT.session.put, verify=not self.check_USE_PROXY.isChecked())
-						self.ETSY_API_CLIENT.session.delete = partial(self.ETSY_API_CLIENT.session.delete, verify=not self.check_USE_PROXY.isChecked())
-						self.ETSY_API_CLIENT.session.patch = partial(self.ETSY_API_CLIENT.session.patch, verify=not self.check_USE_PROXY.isChecked())
+
+						# Disable verifying by default because on widget reload something goes wrong with the useproxy
+						self.ETSY_API_CLIENT.session.get = partial(self.ETSY_API_CLIENT.session.get, verify=False) # not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.post = partial(self.ETSY_API_CLIENT.session.post, verify=False) # not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.put = partial(self.ETSY_API_CLIENT.session.put, verify=False) # not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.delete = partial(self.ETSY_API_CLIENT.session.delete, verify=False) # not self.check_USE_PROXY.isChecked())
+						self.ETSY_API_CLIENT.session.patch = partial(self.ETSY_API_CLIENT.session.patch, verify=False) # not self.check_USE_PROXY.isChecked())
 
 
 				self.check_USE_PROXY.stateChanged.connect(check_USE_PROXY_callback)

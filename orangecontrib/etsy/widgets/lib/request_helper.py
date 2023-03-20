@@ -67,6 +67,7 @@ class RequestHelper:
 			#  really strange bug, and potentially very dangerous.
 			# for limit, offset in self.etsy_request_offsets_and_limits:
 			def wrapper(offset, limit, *args, **kwargs):
+				# try:
 				paramters = inspect.signature(self.etsy_client_send_request).parameters
 				if "limit" in paramters: kwargs["limit"] = limit
 				if "offset" in paramters: kwargs["offset"] = offset
@@ -74,6 +75,8 @@ class RequestHelper:
 					(offset, limit):
 						self.etsy_client_send_request(*args, **kwargs)
 				}
+				# except Exception as e:
+
 			for offset, limit in self.etsy_request_offsets_and_limits:
 				task = pool.submit(
 						wrapper,
