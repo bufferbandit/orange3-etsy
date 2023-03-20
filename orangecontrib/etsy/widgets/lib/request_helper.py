@@ -59,8 +59,7 @@ class RequestHelper:
 
 	def send_request(self):
 		try:
-			MAX_THREADS = 8
-			pool = ThreadPoolExecutor(max_workers=MAX_THREADS)
+			pool = ThreadPoolExecutor(max_workers=self.CLIENT_MAX_THREADS)
 			# self.logger.debug(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
 			# For some reason the offset and limit are swapped around

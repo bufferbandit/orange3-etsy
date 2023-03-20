@@ -149,6 +149,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 	TAXONOMY_ID_RAW = False
 
+	CLIENT_MAX_THREADS = 8
+
 
 
 
@@ -459,6 +461,14 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 				self.etsyOptionsControlBox.layout().addWidget(self.etsy_options_tree)
 
 				# self.etsyOptionsControlBox.setFlat(False)
+
+				self.check_CLIENT_MAX_THREADS = QSpinBox()
+				self.check_CLIENT_MAX_THREADS.setValue(self.CLIENT_MAX_THREADS)
+				self.check_ETSY_PORT.valueChanged.connect(
+					lambda: setattr(self, "CLIENT_MAX_THREADS", self.check_CLIENT_MAX_THREADS.value()))
+
+				self.etsy_options_tree.add_element(
+					self.build_element_with_label("Max threads", self.check_CLIENT_MAX_THREADS))
 
 				self.check_ETSY_HOST.setAlignment(Qt.AlignTop)
 
