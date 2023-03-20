@@ -402,17 +402,17 @@ class DataFrameModel(QtCore.QAbstractTableModel):
     def beginDynamicFilter(self):
         """Effects of using the "filter" function will not become permanent until endDynamicFilter called"""
         if self._pre_dyn_filter_df is None:
-            this.logger.debug("NEW DYNAMIC FILTER MODEL")
+            self.logger.debug("NEW DYNAMIC FILTER MODEL")
             self._pre_dyn_filter_df = self.df.copy()
         else:
             # Already dynamically filtering, so don't override that
-            this.logger.debug("SAME DYNAMIC FILTER MODEL")
+            self.logger.debug("SAME DYNAMIC FILTER MODEL")
             pass
 
     @QtCore.pyqtSlot()
     def endDynamicFilter(self):
         """Makes permanent the effects of the dynamic filter"""
-        this.logger.debug(" * * * RESETING DYNAMIC")
+        self.logger.debug(" * * * RESETING DYNAMIC")
         self._pre_dyn_filter_df = None
 
     @QtCore.pyqtSlot()
@@ -581,7 +581,7 @@ class DataFrameSortFilterProxyModel(QSortFilterProxyModel):
         self._source_df = self.sourceModel().df
         # Accept all rows
         self._accepted_rows = range(0, self._source_df.shape[0])
-        this.logger.debug("SOURCE MODEL CHANGED", len(self._accepted_rows))
+        self.logger.debug("SOURCE MODEL CHANGED", len(self._accepted_rows))
         if len(self._accepted_rows) > 0:
             self.setFilterString('')    # Reset the filter
         self._refilter()

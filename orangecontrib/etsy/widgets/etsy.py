@@ -12,6 +12,7 @@ from collections import ChainMap
 from datetime import datetime
 from functools import partial
 
+import aiohttp
 import pandas as pd
 import qasync
 import requests
@@ -135,7 +136,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 	paginateLimitValue = 100 # Setting(100)
 
 	etsy_request_offsets_and_limits = [(0, paginateLimitValue)]
-	# this.logger.debug(etsy_request_offsets_and_limits)
+	# self.logger.debug(etsy_request_offsets_and_limits)
 
 	request_lock = None
 
@@ -167,6 +168,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			reference_file_path=self.ETSSY_API_REFERENCE_FILE_PATH
 		)
 		# self.ETSY_API_CLIENT.session = requests.Session()
+		# self.ETSY_API_CLIENT.session = aiohttp.ClientSession()
 
 		# asyncio.set_event_loop(qasync.QEventLoop(self))
 		self.loop = qasync.QEventLoop(self)
@@ -335,6 +337,10 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 				#
 				self.etsyClientProxyTreeMenu = ElementTreeWidget()
+				# Disable this until authenticated because the
+				#  ssl check has not been disabled yet on the authentication requests
+				self.etsyClientProxyTreeMenu.setEnabled(False)
+
 				self.check_USE_PROXY = QCheckBox("Use proxy")
 
 				self.etsyClientProxyTreeMenu.set_top_level_element(self.check_USE_PROXY)
@@ -359,7 +365,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 
 					if self.check_USE_PROXY.isChecked():
-						# extremely dumb sollution but could not different because annoying requests
+						# extremely dumb solution but could not different because annoying requests
 						# devs annoyingly decided to not respect wishes and be able to verify on session
 						self.ETSY_API_CLIENT.session.get = partial(self.ETSY_API_CLIENT.session.get, verify=not self.check_USE_PROXY.isChecked())
 						self.ETSY_API_CLIENT.session.post = partial(self.ETSY_API_CLIENT.session.post, verify=not self.check_USE_PROXY.isChecked())
@@ -852,18 +858,8 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 		self.enable_qgroupbox_and_color_title(self.httpVerbsTreeMenu)
 		self.enable_qgroupbox_and_color_title(self.paginateTreeMenu)
+		self.sendRequestButton.clicked.connect(self.send_request)
 
-		# self.sendRequestButton.clicked.connect(lambda: \
-		# 	asyncio.get_event_loop()
-		# 	.run_until_complete(self.send_request()))
-
-		self.sendRequestButton.clicked.connect(lambda:
-                           asyncio.create_task(
-                           self.send_request()
-                           ))
-
-
-		# self.ETSY_API_CLIENT = EtsyOAuth2Client(
 		# Re-initialize the client with the new token
 		self.ETSY_API_CLIENT.__init__(
 			api_token=self.ETSY_API_TOKEN,
@@ -890,6 +886,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.enable_qgroupbox_and_color_title(self.required_parameters_box)
 		self.enable_qgroupbox_and_color_title(self.optional_parameters_box)
 		self.searchBox.setEnabled(True)
+		self.etsyClientProxyTreeMenu.setEnabled(True)
 
 	def closeEvent(self, event):
 		super().closeEvent(event)

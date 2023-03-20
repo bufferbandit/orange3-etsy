@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
 
 from PyQt5.QtWidgets import QMessageBox
@@ -23,14 +24,14 @@ class RequestHelper:
 				offset, limit = _key
 				for key, value in _value.items():
 					if key == "results":
-						# this.logger.debug("Num results: ", len(value))
+						# self.logger.debug("Num results: ", len(value))
 						pass
 					# this could be done with checking for __add__ imo, but that doesnt seem to work
 					if isinstance(value, (int, float, list, tuple)):
 						empty_default_object = __builtins__[type(value).__name__]()
 						merged[key] = merged.get(key, empty_default_object) + value
 					else:
-						this.logger.debug("Merged for " + key)
+						self.logger.debug("Merged for " + key)
 						merged[key] = value
 		return merged
 
@@ -53,38 +54,40 @@ class RequestHelper:
 		error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
 		self.change_app_status_label(error_msg[:120] + "...", "red")
 		QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
-		this.logger.debug(self.get_traceback())
+		self.logger.debug(self.get_traceback())
 		raise exception
 
-	async def send_request(self):
+	def send_request(self):
 		try:
-			# this.logger.debug(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
+			MAX_THREADS = 8
+			pool = ThreadPoolExecutor(max_workers=MAX_THREADS)
+			# self.logger.debug(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
-			for offset, limit in self.etsy_request_offsets_and_limits:
 			# For some reason the offset and limit are swapped around
 			#  (which is not the way it's comming out of the function)
 			#  really strange bug, and potentially very dangerous.
 			# for limit, offset in self.etsy_request_offsets_and_limits:
-				async def wrapper(offset, limit, *args, **kwargs):
-					paramters = inspect.signature(self.etsy_client_send_request).parameters
-					if "limit" in paramters:kwargs["limit"] = limit
-					if "offset" in paramters:kwargs["offset"] = offset
-					return {
-						(offset, limit) :
-								self.etsy_client_send_request(*args, **kwargs)
-					}
-				task = asyncio.create_task(
-					wrapper(
+			def wrapper(offset, limit, *args, **kwargs):
+				paramters = inspect.signature(self.etsy_client_send_request).parameters
+				if "limit" in paramters: kwargs["limit"] = limit
+				if "offset" in paramters: kwargs["offset"] = offset
+				return {
+					(offset, limit):
+						self.etsy_client_send_request(*args, **kwargs)
+				}
+			for offset, limit in self.etsy_request_offsets_and_limits:
+				task = pool.submit(
+						wrapper,
 						limit=limit,
 						offset=offset,
 						*self.ETSY_API_CLIENT_SEND_REQUEST_ARGS,
 						**self.ETSY_API_CLIENT_SEND_REQUEST_KWARGS,
-					)
+
 				)
 				tasks.append(task)
-			results = await asyncio.gather(*tasks)
+			results = [task.result() for task in tasks]
 			sorted_dicts = sorted(results, key=lambda x: sum(list(x.keys())[0]))
-			# this.logger.debug([d.keys() for d in sorted_dicts])
+			# self.logger.debug([d.keys() for d in sorted_dicts])
 			merged_dicts = self.merge_dicts(sorted_dicts)
 			self.ETSY_API_RESPONSE = merged_dicts
 			self.change_http_status_label("200 OK", color="green")
@@ -116,8 +119,4 @@ class RequestHelper:
 		_get_dict.restype = c.POINTER(c.py_object)
 		_get_dict.argtypes = [c.py_object]
 		_get_dict(obj).contents.value[name] = value
-
-	# For some stupid reason asyncio functins dont seem to print the stacktrace to the console.
-	# This function is a workaround for that.
-
 
