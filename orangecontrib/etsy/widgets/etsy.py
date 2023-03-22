@@ -196,7 +196,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 			stackstr += "  " + traceback.format_exc().lstrip(trc)
 		return stackstr
 
-	def exception_hook(self, exctype, value, traceback):
+	def exception_hook(self, exctype, value, _traceback):
 		exception_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		error_msg = f"Error: {exctype}: {value}"
 		# error_msg = f"Error: {traceback.format_exc()}"
@@ -207,9 +207,15 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 		self.transform_err = Msg(error_msg)
 		self.error(error_msg)
 		# error_msg = traceback.format_exc()
-		error_msg = self.get_traceback()
+		# error_msg = "".join(traceback.format_stack())
+		# error_msg = self.get_traceback()
+		# error_msg = str(traceback)
+		traceback_list = traceback.format_exception(exctype, value, _traceback)
+		# error_msg = "".join(traceback_list)
+		error_msg = traceback_list[-1]
+		print(error_msg)
 		QMessageBox.critical(self, "Error", error_msg, QMessageBox.Ok)
-		sys.__excepthook__(exctype, value, traceback)
+		sys.__excepthook__(exctype, value, _traceback)
 	def setup_custom_exception_hook(self):
 		sys.excepthook = self.exception_hook
 		threading.excepthook =  self.exception_hook

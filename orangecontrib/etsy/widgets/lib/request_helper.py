@@ -44,21 +44,23 @@ class RequestHelper:
 			NotFound: ("404 Not found. ", "404"),
 			InternalError: ("500 Internal server error. ", "500")
 		}
-
-		error_msg_prefix,status_code  = ERROR_MESSAGES[type(exception)]
-
-		error_msg = error_msg_prefix
-		self.change_http_status_label(error_msg, color="red")
-		# self.transform_err = Msg(error_msg)
-		self.error(error_msg)
-		error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
-		self.change_app_status_label(error_msg[:120] + "...", "red")
-		QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
-		self.logger.debug(self.get_traceback())
-		raise exception
+		try:
+			error_msg_prefix,status_code  = ERROR_MESSAGES[type(exception)]
+			error_msg = error_msg_prefix
+			self.change_http_status_label(error_msg, color="red")
+			# self.transform_err = Msg(error_msg)
+			self.error(error_msg)
+			error_msg = f"{error_msg_prefix}{exception.__class__.__name__}: {exception.args[0]}"
+			self.change_app_status_label(error_msg[:120] + "...", "red")
+			QMessageBox.critical(self, "Error", error_msg[:1500] + "...", QMessageBox.Ok)
+			self.logger.debug(self.get_traceback())
+		except KeyError as ke: # Error is not in the dict
+			raise exception
 
 	def send_request(self):
 		try:
+			# TODO: Look into a way to make this a more
+			#  time based semaphore (the api has a rate limit of 10 reqs/sec)
 			pool = ThreadPoolExecutor(max_workers=self.CLIENT_MAX_THREADS)
 			# self.logger.debug(self.paginateLimitValue, self.etsy_request_offsets_and_limits)
 			tasks = []
