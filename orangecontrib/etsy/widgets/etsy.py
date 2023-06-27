@@ -555,7 +555,7 @@ class OrangeEtsyApiInterface(OWWidget, SetupHelper, WidgetsHelper, RequestHelper
 
 				self.paginateSlider = QLabeledRangeSlider()
 				self.paginateSlider.setOrientation(Qt.Horizontal)
-				_range_num = 12000
+				_range_num = 9999
 				self.paginateSlider.setRange(1, _range_num)
 				# self.paginateSlider._slider.setRange(1, 999999999999)
 				self.paginateSlider.setSliderPosition([1, self.paginateLimitValue])
