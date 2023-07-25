@@ -313,6 +313,9 @@ class EtsyOAuth2Client(etsyv3.etsy_api.EtsyAPI):
 		self.expires_in = tokens["expires_in"]
 		self.expiry = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expires_in)
 
+		if hasattr(self, "session"):
+			self.session.headers["Authorization"] = "Bearer " + self.token
+
 		if self.verbose: print("Succesfully refreshed token", self.access_token, self.refresh_token, self.expires_in)
 		if self.auto_refresh_token:
 			self.start_auto_refreshing_token()
